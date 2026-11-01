@@ -19,3 +19,8 @@
 *.VC.db
 .DS_Store
 Thumbs.db
+
+
+# Photon credentials: keep the App ID out of version control
+/Assets/Photon/Fusion/Resources/PhotonAppSettings.asset
+/Assets/Photon/Fusion/Resources/PhotonAppSettings.asset.meta
