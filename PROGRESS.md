@@ -20,17 +20,20 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 1 — Jugador y camcorder en solitario (días 3–7)
 
-- [ ] Controlador en primera persona: caminar, correr (con stamina), agacharse, mirar con ratón.
-- [ ] Cámara del jugador con overlay de camcorder: luz REC parpadeante, tiempo, batería, cinta.
-- [ ] Postprocesado found footage: grano, viñeta, aberración cromática, ruido.
-- [ ] Visión nocturna (tecla N) con consumo de batería 3×.
-- [ ] Zoom con la rueda del ratón.
-- [ ] Batería y cinta que se agotan, con avisos y apagado de la cámara a 0.
-- [ ] Linterna independiente de la cámara.
-- [ ] Sistema de interacción (tecla E): abrir puertas, recoger objetos, usar interruptores.
-- [ ] Inventario simple de 3 ranuras más camcorder.
-- [ ] Capa «Ghost» visible solo para la cámara del jugador (culling mask). Probar con un cubo de prueba.
-- [ ] Prueba: recorrer una sala de prueba, ver el cubo solo por la cámara, gastar batería y cinta.
+> Estado: implementados los sistemas y generados Assets/Prefabs/Player/Player.prefab y Assets/Scenes/PhaseOneTest.unity; compilación batch de Unity correcta (código 0). Todas las tareas de Fase 1 están implementadas y verificadas en Play Mode.
+
+- [x] Controlador en primera persona: caminar, correr (con stamina), mirar con ratón.
+- [x] Agacharse (tecla C).
+- [x] Cámara del jugador con overlay de camcorder: luz REC parpadeante, tiempo, batería, cinta.
+- [x] Postprocesado found footage: grano, viñeta, aberración cromática, ruido.
+- [x] Visión nocturna (tecla N) con consumo de batería 3×.
+- [x] Zoom con la rueda del ratón.
+- [x] Batería y cinta que se agotan, con avisos y apagado de la cámara a 0.
+- [x] Linterna independiente de la cámara.
+- [x] Sistema de interacción (tecla E): abrir puertas, recoger objetos, usar interruptores.
+- [x] Inventario simple de 3 ranuras más camcorder.
+- [x] Capa «Ghost» visible solo para la cámara del jugador (culling mask). Probar con un cubo de prueba.
+- [x] Prueba: recorrer una sala de prueba, ver el cubo solo por la cámara, gastar batería y cinta.
 
 ## Fase 2 — Mansión (días 6–12)
 
@@ -103,3 +106,9 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 - [ ] Los 4 fantasmas se pueden identificar y expulsar correctamente.
 - [ ] La camcorder es imprescindible: sin ella no se puede ver al fantasma.
 - [ ] No hay errores que impidan terminar una partida.
+
+
+
+
+
+
