@@ -30,6 +30,7 @@ namespace UltimaCinta.Editor
         public const float StairClearance = 1.2f;
         public const float FurnitureMaxDimension = 2.4f;
         public const float HideoutMaxDimension = 2.0f;
+        public const float HideoutColliderMargin = 0.3f;
         public const float BedLength = 2.0f;
         public const float BedWidth = 1.0f;
         public const float BedHeight = 0.8f;
@@ -66,6 +67,9 @@ namespace UltimaCinta.Editor
         public const float SmallObjectSize = 0.25f;
         public const float KeySize = 0.22f;
         public const float ObjectScaleBoost = 1.3f;
+        public const float CeilingLampDiameter = 0.4f;
+        public const float CeilingLampLightOffset = 0.2f;
+        public const float SwitchFrameOffset = 0.15f;
         public const float WallOffset = 0.05f;
         public const float DoorArcClearance = 0.9f;
         public const float MinimumHallWidth = 0.9f;
@@ -118,6 +122,8 @@ namespace UltimaCinta.Editor
 
     public static class MansionDecorator
     {
+        private static AudioClip sparkClipCache;
+        private static bool sparkClipSearched;
         private const string MenuPath = "Tools/UltimaCinta/3. Decorar mansión";
         private const string GeneratedRoot = "Assets/Generated";
         private const string KeyItemsFolder = "Assets/Generated/KeyItems";
@@ -215,12 +221,15 @@ namespace UltimaCinta.Editor
 
             var scene = EditorSceneManager.OpenScene(MansionDecorationConstants.ScenePath, OpenSceneMode.Single);
             SceneManager.SetActiveScene(scene);
+            var ceilingLampPaths = FindCeilingLampModels();
             var modelPaths = FindFbxModels();
             var modelsByName = IndexModels(modelPaths);
             var placed = 0;
             var omitted = 0;
             var hideoutCount = 0;
             var keyLocations = new List<string>();
+            var hideoutLocations = new List<string>();
+            var lampLocations = new List<string>();
             var omittedDetails = new List<string>();
             var roomPlacements = CreateRoomPlacements(spaces);
             var usedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -242,13 +251,34 @@ namespace UltimaCinta.Editor
                 }
                 var container = ResetDecorationContainer(room.transform);
                 PlaceRoomObjects(space, room, container, roomPlacements[space.Id], modelPaths, spaces, doors, stairs,
-                    ref placed, ref omitted, ref hideoutCount, keyLocations, omittedDetails);
+                    ref placed, ref omitted, ref hideoutCount, keyLocations, hideoutLocations, omittedDetails);
+                var roomSwitch = container.Find("interruptor");
+                if (roomSwitch != null && ceilingLampPaths.Count > 0 && !IsStairOrOpening(space, stairs))
+                {
+                    var lampPath = ceilingLampPaths[lampLocations.Count % ceilingLampPaths.Count];
+                    var lamp = PlaceCeilingLamp(space, container, lampPath);
+                    if (lamp != null)
+                    {
+                        var switchComponent = roomSwitch.GetComponent<SwitchInteractable>();
+                        if (switchComponent != null) switchComponent.SetControlledFixture(lamp);
+                        var lightTransform = room.transform.Find("LuzHabitacion");
+                        if (lightTransform != null)
+                        {
+                            TryGetRendererBounds(lamp, out var lampBounds);
+                            lightTransform.position = new Vector3(lampBounds.center.x,
+                                lampBounds.center.y - MansionDecorationConstants.CeilingLampLightOffset, lampBounds.center.z);
+                        }
+                        lampLocations.Add($"Lámpara {NormalizeModelName(Path.GetFileNameWithoutExtension(lampPath))} en {space.Id}");
+                        placed++;
+                    }
+                }
             }
 
             ReplaceVan(scene, modelsByName, ref placed, ref omitted, omittedDetails);
+            var poiSummary = AnnotateAndSummarizePoi(scene);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, MansionDecorationConstants.ScenePath);
-            Debug.Log($"Mansión decorada: objetos colocados {placed}; omitidos {omitted} [{ShortOmissionList(omittedDetails)}]; llaves [{string.Join("; ", keyLocations)}].");
+            Debug.Log($"Mansión decorada: objetos colocados {placed}; omitidos {omitted} [{ShortOmissionList(omittedDetails)}]; llaves [{string.Join("; ", keyLocations)}]; lámparas [{string.Join("; ", lampLocations)}]; escondites [{string.Join("; ", hideoutLocations)}]; POI [{poiSummary}].");
         }
 
         private static string ShortOmissionList(List<string> omissions)
@@ -257,6 +287,25 @@ namespace UltimaCinta.Editor
             if (omissions.Count <= maximumShown) return string.Join(", ", omissions);
             var shown = omissions.GetRange(0, maximumShown);
             return string.Join(", ", shown) + $", … +{omissions.Count - maximumShown}";
+        }
+
+        private static string AnnotateAndSummarizePoi(Scene scene)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var root in scene.GetRootGameObjects())
+            foreach (var markerTransform in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (!markerTransform.name.StartsWith("POI_", StringComparison.OrdinalIgnoreCase)) continue;
+                if (markerTransform.GetComponent<PoiMarker>() == null) markerTransform.gameObject.AddComponent<PoiMarker>();
+                var room = markerTransform.parent;
+                while (room != null && !IsRoomId(room.name)) room = room.parent;
+                var key = PoiMarker.TypeLabel(markerTransform.name) + " " + (room != null ? room.name : "sin recinto");
+                counts[key] = counts.TryGetValue(key, out var count) ? count + 1 : 1;
+            }
+            var entries = new List<string>();
+            foreach (var item in counts) entries.Add(item.Key + "=" + item.Value);
+            entries.Sort(StringComparer.OrdinalIgnoreCase);
+            return entries.Count == 0 ? "sin POI" : string.Join("; ", entries);
         }
 
         private static Dictionary<string, RoomMetadata> ReadRoomMetadata(string[] lines)
@@ -313,6 +362,67 @@ namespace UltimaCinta.Editor
             }
             result.Sort(StringComparer.OrdinalIgnoreCase);
             return result;
+        }
+
+        private static List<string> FindCeilingLampModels()
+        {
+            var result = new List<string>();
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { ".fbx", ".glb", ".gltf", ".obj", ".prefab" };
+            foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { MansionGeneratorConstants.MaterialsFolder }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+                if (!stem.StartsWith("focotecho", StringComparison.Ordinal) || !allowedExtensions.Contains(Path.GetExtension(path))) continue;
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) continue;
+                result.Add(path);
+                Debug.Log($"MansionDecorator: focotecho encontrado: {path}");
+            }
+            result.Sort(StringComparer.OrdinalIgnoreCase);
+            return result;
+        }
+
+        private static bool IsStairOrOpening(MansionLayoutSpace space, List<MansionLayoutStair> stairs)
+        {
+            var kind = space.Kind ?? string.Empty;
+            if (space.Id.IndexOf("ESC", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kind.IndexOf("escalera", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kind.IndexOf("hueco", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            var lampRadius = MansionDecorationConstants.CeilingLampDiameter * 0.5f;
+            foreach (var stair in stairs)
+                if ((stair.LandingA == space.Id || stair.LandingB == space.Id) &&
+                    space.Bounds.center.x + lampRadius > stair.Opening.xMin && space.Bounds.center.x - lampRadius < stair.Opening.xMax &&
+                    space.Bounds.center.y + lampRadius > stair.Opening.yMin && space.Bounds.center.y - lampRadius < stair.Opening.yMax)
+                    return true;
+            return false;
+        }
+
+        private static GameObject PlaceCeilingLamp(MansionLayoutSpace space, Transform container, string path)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null) return null;
+            var lamp = PrefabUtility.InstantiatePrefab(asset, container.gameObject.scene) as GameObject;
+            if (lamp == null) lamp = UnityEngine.Object.Instantiate(asset);
+            lamp.name = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+            lamp.transform.SetParent(container, false);
+            if (!TryGetRendererBounds(lamp, out var bounds))
+            {
+                UnityEngine.Object.DestroyImmediate(lamp);
+                return null;
+            }
+            ScaleToTarget(lamp.transform, bounds.size, Vector3.one * MansionDecorationConstants.CeilingLampDiameter);
+            if (!TryGetRendererBounds(lamp, out bounds))
+            {
+                UnityEngine.Object.DestroyImmediate(lamp);
+                return null;
+            }
+            var ceilingY = MansionGenerator.FloorY(space.Level) +
+                           (space.Level == "Desván" ? MansionGeneratorConstants.AtticHeight : MansionGeneratorConstants.ClearHeight);
+            var center = new Vector3(space.Bounds.center.x, ceilingY - bounds.extents.y, space.Bounds.center.y);
+            SetBoundsCenter(lamp.transform, bounds, center);
+            TryGetRendererBounds(lamp, out bounds);
+            lamp.transform.position += Vector3.up * (ceilingY - bounds.max.y);
+            return lamp;
         }
 
         private static Dictionary<string, string> IndexModels(List<string> modelPaths)
@@ -577,9 +687,8 @@ namespace UltimaCinta.Editor
             var normalized = type.ToLowerInvariant();
             if (normalized.Contains("armario") && normalized.Contains("bajo cama")) return index == 1 ? "cama" : "armario";
             if (normalized.Contains("bajo cama")) return "cama";
-            if (normalized.Contains("cama") && index == 1) return "cama";
+            if (normalized.Contains("cama")) return "cama";
             if (normalized.Contains("estanter")) return "Estantería con libros";
-            if (normalized.Contains("cama") && normalized.Contains("armario") && index == 1) return "cama";
             return "armario";
         }
 
@@ -668,7 +777,8 @@ namespace UltimaCinta.Editor
         private static void PlaceRoomObjects(MansionLayoutSpace space, GameObject room, Transform container,
             List<Placement> placements, List<string> models, List<MansionLayoutSpace> allSpaces,
             List<MansionLayoutDoor> doors, List<MansionLayoutStair> stairs,
-            ref int placed, ref int omitted, ref int hideoutCount, List<string> keyLocations, List<string> omittedDetails)
+            ref int placed, ref int omitted, ref int hideoutCount, List<string> keyLocations,
+            List<string> hideoutLocations, List<string> omittedDetails)
         {
             var occupied = new List<PlacedObject>();
             var surfaces = new List<SupportSurface>();
@@ -681,8 +791,16 @@ namespace UltimaCinta.Editor
                     var existingBed = container.Find("cama") ?? container.Find("cunadebebe");
                     if (existingBed != null)
                     {
+                        if (!TryGetRendererBounds(existingBed.gameObject, out var bedBounds))
+                        {
+                            Debug.LogError($"MansionDecorator: escondite {placement.Name} en {space.Id} no tiene punto de ocultación.");
+                            continue;
+                        }
                         existingBed.name = placement.Name;
-                        ConfigureHideout(existingBed.gameObject, true);
+                        RemoveChildColliders(existingBed);
+                        AddBoundsCollider(existingBed.gameObject, bedBounds, placement, false);
+                        ConfigureHideout(existingBed.gameObject, true, "cama", space.Bounds);
+                        hideoutLocations.Add($"Escondite {placement.Name} en {space.Id}, tipo cama");
                         hideoutCount++;
                         continue;
                     }
@@ -713,7 +831,7 @@ namespace UltimaCinta.Editor
                 Bounds finalBounds = default;
                 var fit = false;
                 var relaxedDining = false;
-                string failureReason = "sin candidatos";
+                string failureReason = placement.Kind == MansionPlacementKind.Switch ? "sin puerta apta" : "sin candidatos";
                 SupportSurface selectedSurface = null;
                 var retryFactors = isKey || NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "camioneta"
                     ? new[] { 1f } : new[] { 1f, 1.15f / MansionDecorationConstants.ObjectScaleBoost, 1f / MansionDecorationConstants.ObjectScaleBoost };
@@ -723,9 +841,10 @@ namespace UltimaCinta.Editor
                     usedFactor = retryFactors[attempt];
                     instance.transform.localScale = prefabScale;
                     ScaleToTarget(instance.transform, sourceBounds.size, targetSize * usedFactor, placement);
+                    instance.transform.localScale *= (placement.Kind == MansionPlacementKind.Key) ? 1.3f : 1.15f;
                     var scaledScale = instance.transform.localScale;
-                    var candidates = BuildPlacementCandidates(space, placement, instance, allSpaces, surfaces, doors);
-                    if (candidates.Count == 0) failureReason = "sin candidatos";
+                    var candidates = BuildPlacementCandidates(space, placement, instance, allSpaces, surfaces, doors, stairs);
+                    if (candidates.Count == 0) failureReason = placement.Kind == MansionPlacementKind.Switch ? "sin puerta apta" : "sin candidatos";
                     foreach (var candidate in candidates)
                     {
                         instance.transform.localScale = scaledScale;
@@ -823,7 +942,11 @@ namespace UltimaCinta.Editor
                 }
                 AddBoundsCollider(instance, finalBounds, placement, pickup != null);
                 if (placement.Kind == MansionPlacementKind.Hideout)
-                    ConfigureHideout(instance, NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "cama");
+                {
+                    var hideoutType = HideoutType(placement.Asset);
+                    ConfigureHideout(instance, hideoutType == "cama", hideoutType, space.Bounds);
+                    hideoutLocations.Add($"Escondite {placement.Name} en {space.Id}, tipo {hideoutType}");
+                }
                 if (placement.Kind == MansionPlacementKind.Switch)
                     ConfigureRoomSwitch(instance, room);
                 occupied.Add(new PlacedObject { Name = placement.Name, Bounds = finalBounds, SupportId = selectedSurface != null ? selectedSurface.Id : null });
@@ -843,11 +966,21 @@ namespace UltimaCinta.Editor
             Debug.LogWarning($"MansionDecorator: omitido {room}:{name}; {reason}.");
         }
 
-        private static void ConfigureHideout(GameObject instance, bool underBed)
+        private static string HideoutType(string assetPath)
+        {
+            var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(assetPath ?? string.Empty));
+            if (stem.Contains("cama")) return "cama";
+            if (stem.Contains("armario")) return "armario";
+            return "otro";
+        }
+
+        private static void ConfigureHideout(GameObject instance, bool underBed, string type, Rect roomBounds)
         {
             var hideout = instance.GetComponent<UltimaCinta.Interaction.HideoutInteractable>() ??
                           instance.AddComponent<UltimaCinta.Interaction.HideoutInteractable>();
             hideout.SetUnderBed(underBed);
+            hideout.SetHideoutType(type);
+            hideout.SetRoomBounds(new Vector2(roomBounds.xMin, roomBounds.yMin), new Vector2(roomBounds.xMax, roomBounds.yMax));
         }
 
         private static void ConfigureRoomSwitch(GameObject instance, GameObject room)
@@ -859,6 +992,22 @@ namespace UltimaCinta.Editor
             serialized.FindProperty("controlledLight").objectReferenceValue = roomLight;
             serialized.FindProperty("controlledObject").objectReferenceValue = null;
             serialized.ApplyModifiedPropertiesWithoutUndo();
+            toggle.SetFailureClip(FindSparkAudioClip());
+        }
+
+        private static AudioClip FindSparkAudioClip()
+        {
+            if (sparkClipSearched) return sparkClipCache;
+            sparkClipSearched = true;
+            foreach (var guid in AssetDatabase.FindAssets("t:AudioClip"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var name = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+                if (!name.Contains("chispa") && !name.Contains("spark") && !name.Contains("pop")) continue;
+                sparkClipCache = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                if (sparkClipCache != null) break;
+            }
+            return sparkClipCache;
         }
 
         private sealed class PlacementCandidate
@@ -879,7 +1028,8 @@ namespace UltimaCinta.Editor
         }
 
         private static List<PlacementCandidate> BuildPlacementCandidates(MansionLayoutSpace space, Placement placement,
-            GameObject instance, List<MansionLayoutSpace> allSpaces, List<SupportSurface> surfaces, List<MansionLayoutDoor> doors)
+            GameObject instance, List<MansionLayoutSpace> allSpaces, List<SupportSurface> surfaces, List<MansionLayoutDoor> doors,
+            List<MansionLayoutStair> stairs)
         {
             var result = new List<PlacementCandidate>();
             var floorY = MansionGenerator.FloorY(space.Level);
@@ -930,7 +1080,7 @@ namespace UltimaCinta.Editor
             }
             if (placement.Kind == MansionPlacementKind.Switch)
             {
-                AddSwitchCandidate(result, space, instance, doors, floorY);
+                AddSwitchCandidate(result, space, instance, doors, allSpaces, stairs, floorY);
                 return result;
             }
 
@@ -998,19 +1148,53 @@ namespace UltimaCinta.Editor
         }
 
         private static void AddSwitchCandidate(List<PlacementCandidate> result, MansionLayoutSpace space, GameObject instance,
-            List<MansionLayoutDoor> doors, float floorY)
+            List<MansionLayoutDoor> doors, List<MansionLayoutSpace> spaces, List<MansionLayoutStair> stairs, float floorY)
         {
-            var door = doors.Find(item => item.A == space.Id || item.B == space.Id);
-            if (door == null) return;
-            var inward = door.Axis == 'X'
-                ? (space.Bounds.center.x >= door.Position ? Vector3.right : Vector3.left)
-                : (space.Bounds.center.y >= door.Position ? Vector3.forward : Vector3.back);
-            var along = door.Max + 0.14f;
-            var position = door.Axis == 'X' ? new Vector3(door.Position, floorY + MansionDecorationConstants.SwitchHeight, along) :
-                new Vector3(along, floorY + MansionDecorationConstants.SwitchHeight, door.Position);
-            if (door.Axis == 'X') position.x += inward.x * MansionDecorationConstants.ObjectWallGap;
-            else position.z += inward.z * MansionDecorationConstants.ObjectWallGap;
-            result.Add(new PlacementCandidate { center = position, yaw = Quaternion.LookRotation(inward).eulerAngles.y });
+            var roomDoors = doors.FindAll(item => item.A == space.Id || item.B == space.Id);
+            roomDoors.Sort((left, right) => SwitchDoorPriority(left, space, spaces).CompareTo(SwitchDoorPriority(right, space, spaces)));
+            var floorYForDoor = floorY;
+            var inward = Vector3.zero;
+            if (!TryGetRendererBounds(instance, out var sourceBounds)) return;
+            foreach (var door in roomDoors)
+            {
+                if (!MansionGenerator.TryResolveDoorSwing(door, spaces, stairs, out var hingeAtMax, out _, out _)) continue;
+                inward = door.Axis == 'X'
+                    ? (space.Bounds.center.x >= door.Position ? Vector3.right : Vector3.left)
+                    : (space.Bounds.center.y >= door.Position ? Vector3.forward : Vector3.back);
+                var yaw = Quaternion.LookRotation(inward).eulerAngles.y;
+                instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                if (!TryGetRendererBounds(instance, out var switchBounds)) continue;
+                var handleAtMax = !hingeAtMax;
+                for (var side = 0; side < 2; side++)
+                {
+                    var alongAtMax = side == 0 ? handleAtMax : !handleAtMax;
+                    var alongExtent = door.Axis == 'X' ? switchBounds.extents.z : switchBounds.extents.x;
+                    var along = alongAtMax
+                        ? door.Max + MansionDecorationConstants.SwitchFrameOffset + alongExtent
+                        : door.Min - MansionDecorationConstants.SwitchFrameOffset - alongExtent;
+                    var center = door.Axis == 'X'
+                        ? new Vector3(door.Position + inward.x * (switchBounds.extents.x + MansionDecorationConstants.ObjectWallGap),
+                            floorYForDoor + MansionDecorationConstants.SwitchHeight, along)
+                        : new Vector3(along, floorYForDoor + MansionDecorationConstants.SwitchHeight,
+                            door.Position + inward.z * (switchBounds.extents.z + MansionDecorationConstants.ObjectWallGap));
+                    var candidateBounds = switchBounds;
+                    candidateBounds.center = center;
+                    if (!FitsRoom(candidateBounds, space.Bounds)) continue;
+                    if (DoorLeafIntersects(candidateBounds, door, spaces, stairs, space.Level)) continue;
+                    result.Add(new PlacementCandidate { center = center, yaw = yaw });
+                }
+            }
+        }
+
+        private static int SwitchDoorPriority(MansionLayoutDoor door, MansionLayoutSpace room, List<MansionLayoutSpace> spaces)
+        {
+            var neighborId = door.A == room.Id ? door.B : door.A;
+            var neighbor = spaces.Find(item => item.Id == neighborId);
+            if (neighbor == null) return 1;
+            var id = NormalizeModelName(neighbor.Id);
+            var kind = NormalizeModelName(neighbor.Kind ?? string.Empty);
+            return id.Contains("cor") || id.Contains("hall") || id.Contains("ves") || id.Contains("rec") || id.Contains("ser") ||
+                   kind.Contains("pasillo") || kind.Contains("vestibulo") || kind.Contains("circulacion") || kind.Contains("recibidor") ? 0 : 1;
         }
 
         private static void AddWallCandidates(List<PlacementCandidate> result, MansionLayoutSpace space, GameObject instance,
@@ -1320,9 +1504,17 @@ namespace UltimaCinta.Editor
                 localMax = Vector3.Max(localMax, local);
             }
             var box = instance.AddComponent<BoxCollider>();
+            if (placement.Kind == MansionPlacementKind.Hideout)
+            {
+                var margin = Vector3.one * MansionDecorationConstants.HideoutColliderMargin;
+                localMin -= margin;
+                localMax += margin;
+                instance.layer = LayerMask.NameToLayer("Default");
+            }
             box.center = (localMin + localMax) * MansionDecorationConstants.Half;
             box.size = localMax - localMin;
-            box.isTrigger = !pickup && Mathf.Max(worldBounds.size.x, Mathf.Max(worldBounds.size.y, worldBounds.size.z)) <= MansionDecorationConstants.SmallObjectSize * 2f;
+            box.isTrigger = placement.Kind == MansionPlacementKind.Hideout ||
+                            !pickup && Mathf.Max(worldBounds.size.x, Mathf.Max(worldBounds.size.y, worldBounds.size.z)) <= MansionDecorationConstants.SmallObjectSize * 2f;
         }
 
         private static void ReplaceVan(Scene scene, Dictionary<string, string> models,

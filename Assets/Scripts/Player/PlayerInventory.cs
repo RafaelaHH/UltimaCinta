@@ -50,6 +50,18 @@ namespace UltimaCinta.Player
                 if (_items[i] == null) { _items[i] = item; SlotChanged?.Invoke(i, item); return true; }
             return false;
         }
+        public bool TryRemove(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId) || _items == null) return false;
+            for (var i = 0; i < _items.Length; i++)
+            {
+                if (_items[i] == null || !string.Equals(_items[i].DisplayName, itemId, StringComparison.Ordinal)) continue;
+                _items[i] = null;
+                SlotChanged?.Invoke(i, null);
+                return true;
+            }
+            return false;
+        }
         public void ShowMessage(string message)
         {
             _notification = message;

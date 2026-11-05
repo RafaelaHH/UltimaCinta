@@ -37,14 +37,17 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 2 — Mansión (días 6–12)
 
-> Nota: el código prepara la mansión, llaves en superficies, nueve escondites interactuables, luces de habitación con interruptores, marcadores POI y un menú para hornear el NavMesh. No se abrió Unity ni se ejecutaron los menús; falta compilar y comprobar la escena. La última ejecución reportó 23 objetos omitidos y una llave sin colocar, así que estas tareas siguen sin marcarse hasta validar la nueva ejecución en el Editor.
+> Nota: la decoración con modelos, las luces con interruptores y las llaves se probaron en Unity. Escondites, marcadores POI y cobertura del NavMesh siguen pendientes de prueba.
 
 - [ ] Construir la mansión por bloques (modular) con paredes y pisos hechos con formas básicas de Unity (ProBuilder) y todos los objetos generados con Hunyuan3D: sótano, planta baja, primer piso, exterior con la camioneta.
-- [ ] Iluminación baja, luces que se pueden encender/apagar, generador en el sótano.
-- [ ] Puertas con llave y sistema de llaves que desbloquea áreas (en la Fase 4 se enlaza con los actos).
-- [ ] Escondites (armarios y camas) que el jugador puede usar.
-- [ ] Bake de NavMesh en toda la casa.
-- [ ] Puntos de interés marcados: sala favorita candidata, puntos de objeto de ritual, puntos de evidencia.
+- [ ] Iluminación baja.
+- [x] Luces de habitaciones con interruptores.
+- [ ] Generador y caja eléctrica con fusible (pendiente de prueba; aún no implementado).
+- [x] Colocación de objetos decorativos con sus modelos.
+- [x] Puertas con llave y sistema de llaves que desbloquea áreas (en la Fase 4 se enlaza con los actos).
+- [ ] Escondites (armarios y camas) que el jugador puede usar (pendiente de prueba; solo probado en armarios).
+- [ ] Bake de NavMesh en toda la casa (pendiente de prueba: confirmar bake y cobertura de plantas y escaleras).
+- [ ] Puntos de interés marcados: sala favorita candidata, puntos de objeto de ritual, puntos de evidencia (pendiente de prueba).
 - [ ] Prueba: recorrer toda la casa, que las puertas y llaves funcionen, que el NavMesh cubra todo.
 
 ## Fase 3 — Fantasma, evidencias y diario (días 10–17)
