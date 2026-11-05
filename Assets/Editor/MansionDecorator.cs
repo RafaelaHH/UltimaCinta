@@ -1,10 +1,11 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Text;
 using UltimaCinta.Data;
 using UltimaCinta.Interaction;
-using UltimaCinta.Lighting;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -79,6 +80,38 @@ namespace UltimaCinta.Editor
         public const float ToiletWidth = 0.45f;
         public const float ToiletDepth = 0.7f;
         public const float VanWidth = 2.4f;
+        public const float ObjectWallGap = 0.03f;
+        public const float WindowHeight = 1.0f;
+        public const float SwitchHeight = 1.2f;
+        public const float VanGearHeight = 0.55f;
+        public const float VanGearSpacing = 0.32f;
+        public const float VanGearRearInset = 0.45f;
+        public const float VanGearStartZ = 0.45f;
+        public const float CribLength = 1.3f;
+        public const float CribWidth = 0.75f;
+        public const float CribHeight = 1.0f;
+        public const float HandLadderLength = 2.0f;
+        public const float MannequinHeight = 1.7f;
+        public const float WindowWidth = 1.2f;
+        public const float WindowHeightTarget = 1.0f;
+        public const float WindowDepth = 0.08f;
+        public const float SmallCanSize = 0.15f;
+        public const float MusicBoxWidth = 0.25f;
+        public const float RitualBoardWidth = 0.8f;
+    }
+
+    internal enum MansionPlacementKind
+    {
+        Furniture,
+        Wall,
+        Surface,
+        Corner,
+        Center,
+        Window,
+        Switch,
+        RitualFloor,
+        Hideout,
+        Key
     }
 
     public static class MansionDecorator
@@ -100,6 +133,22 @@ namespace UltimaCinta.Editor
             public string Name;
             public Vector3 Position;
             public float Yaw;
+            public MansionPlacementKind Kind;
+            public int InstanceIndex;
+        }
+
+        private sealed class SupportSurface
+        {
+            public string Id;
+            public string Name;
+            public Bounds Bounds;
+        }
+
+        private sealed class PlacedObject
+        {
+            public string Name;
+            public Bounds Bounds;
+            public string SupportId;
         }
 
         private static readonly Dictionary<string, string[]> ClueAssets = new Dictionary<string, string[]>
@@ -134,6 +183,7 @@ namespace UltimaCinta.Editor
         [MenuItem(MenuPath)]
         public static void DecorateMansion()
         {
+            MansionGenerator.ResetDoorSwingCache();
             var projectRoot = Directory.GetParent(Application.dataPath);
             var absoluteScenePath = Path.Combine(projectRoot.FullName, MansionDecorationConstants.ScenePath);
             if (!File.Exists(absoluteScenePath))
@@ -154,7 +204,6 @@ namespace UltimaCinta.Editor
             var spaces = MansionLayoutPlanReader.ReadSpaces(lines, errors);
             var doors = MansionLayoutPlanReader.ReadDoors(lines, errors);
             var stairs = MansionLayoutPlanReader.ReadStairs(lines, errors);
-            var metadata = ReadRoomMetadata(lines);
             var hideouts = ReadHideouts(lines, errors);
             if (errors.Count > 0)
             {
@@ -165,42 +214,47 @@ namespace UltimaCinta.Editor
             var scene = EditorSceneManager.OpenScene(MansionDecorationConstants.ScenePath, OpenSceneMode.Single);
             SceneManager.SetActiveScene(scene);
             var modelPaths = FindFbxModels();
-            var roomPlacements = new Dictionary<string, List<Placement>>();
-            foreach (var space in spaces)
-            {
-                var details = new List<Placement>();
-                roomPlacements.Add(space.Id, details);
-                AddRoomClues(space, details, modelPaths, metadata);
-                AddRoomFurniture(space, details, modelPaths);
-            }
-            AddHideouts(hideouts, spaces, roomPlacements, modelPaths);
-            AddKeys(roomPlacements, spaces, modelPaths);
-            AddRitualItems(roomPlacements, spaces, modelPaths);
-
+            var modelsByName = IndexModels(modelPaths);
             var placed = 0;
-            var placeholders = 0;
-            var lights = 0;
+            var omitted = 0;
             var hideoutCount = 0;
             var keyLocations = new List<string>();
+            var omittedDetails = new List<string>();
+            var roomPlacements = CreateRoomPlacements(spaces);
+            var usedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var space in spaces)
+                PopulateRoomModels(space.Id, roomPlacements[space.Id], modelsByName, usedModels);
+            AddHideouts(hideouts, spaces, roomPlacements, modelsByName, usedModels);
+            AddKeys(roomPlacements, modelsByName, usedModels);
+            AddRitualItems(roomPlacements, modelsByName, usedModels);
+            AddVanGear(modelsByName, usedModels);
+            AddUnassignedModels(roomPlacements, modelPaths, modelsByName, usedModels, omittedDetails, ref omitted);
             foreach (var space in spaces)
             {
                 var room = FindGameObjectInScene(scene, space.Id);
                 if (room == null)
                 {
-                    Debug.LogWarning($"MansionDecorator: no se encontró el recinto {space.Id}; se omite su decoración.");
+                    OmitObject(space.Id, "decoración", "sin candidatos", omittedDetails);
+                    omitted++;
                     continue;
                 }
                 var container = ResetDecorationContainer(room.transform);
-                var roomMetadata = metadata.TryGetValue(space.Id, out var value) ? value : new RoomMetadata();
                 PlaceRoomObjects(space, room, container, roomPlacements[space.Id], modelPaths, spaces, doors, stairs,
-                    ref placed, ref placeholders, ref hideoutCount, keyLocations);
-                lights += CreateRoomLight(space, roomMetadata, container);
+                    ref placed, ref omitted, ref hideoutCount, keyLocations, omittedDetails);
             }
 
-            ReplaceVan(scene, modelPaths, ref placed, ref placeholders);
+            ReplaceVan(scene, modelsByName, ref placed, ref omitted, omittedDetails);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, MansionDecorationConstants.ScenePath);
-            Debug.Log($"Mansión decorada: objetos {placed}, escondites {hideoutCount}, luces {lights}, placeholders {placeholders}, llaves [{string.Join(", ", keyLocations)}].");
+            Debug.Log($"Mansión decorada: objetos colocados {placed}; omitidos {omitted} [{ShortOmissionList(omittedDetails)}]; llaves [{string.Join("; ", keyLocations)}].");
+        }
+
+        private static string ShortOmissionList(List<string> omissions)
+        {
+            const int maximumShown = 12;
+            if (omissions.Count <= maximumShown) return string.Join(", ", omissions);
+            var shown = omissions.GetRange(0, maximumShown);
+            return string.Join(", ", shown) + $", … +{omissions.Count - maximumShown}";
         }
 
         private static Dictionary<string, RoomMetadata> ReadRoomMetadata(string[] lines)
@@ -250,11 +304,211 @@ namespace UltimaCinta.Editor
             foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { GeneratedRoot }))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase) &&
-                    !path.StartsWith("Assets/Generated/MansionMaterials/", StringComparison.OrdinalIgnoreCase)) result.Add(path);
+                var allowedCategory = path.StartsWith("Assets/Generated/Ambientacion/", StringComparison.OrdinalIgnoreCase) ||
+                                      path.StartsWith("Assets/Generated/Herramientas/", StringComparison.OrdinalIgnoreCase) ||
+                                      path.StartsWith("Assets/Generated/Ritual/", StringComparison.OrdinalIgnoreCase);
+                if (allowedCategory && path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase)) result.Add(path);
             }
             result.Sort(StringComparer.OrdinalIgnoreCase);
             return result;
+        }
+
+        private static Dictionary<string, string> IndexModels(List<string> modelPaths)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in modelPaths)
+            {
+                var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+                if (!result.ContainsKey(stem)) result.Add(stem, path);
+            }
+            return result;
+        }
+
+        private static string NormalizeModelName(string name)
+        {
+            var decomposed = name.Normalize(NormalizationForm.FormD);
+            var result = new StringBuilder(decomposed.Length);
+            foreach (var character in decomposed)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark) continue;
+                if (char.IsLetterOrDigit(character)) result.Append(char.ToLowerInvariant(character));
+            }
+            return result.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        private static Dictionary<string, List<Placement>> CreateRoomPlacements(List<MansionLayoutSpace> spaces)
+        {
+            var result = new Dictionary<string, List<Placement>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var space in spaces) result.Add(space.Id, new List<Placement>());
+            return result;
+        }
+
+        private static void AddModel(List<Placement> placements, Dictionary<string, string> models,
+            HashSet<string> usedModels, string stem, MansionPlacementKind kind, int count = 1, string instanceName = null)
+        {
+            var normalized = NormalizeModelName(stem);
+            if (!models.TryGetValue(normalized, out var path)) return;
+            usedModels.Add(path);
+            for (var index = 0; index < count; index++)
+                placements.Add(new Placement { Asset = path, Name = instanceName ?? normalized, Kind = kind, InstanceIndex = index });
+        }
+
+        private static void PopulateRoomModels(string roomId, List<Placement> placements, Dictionary<string, string> models,
+            HashSet<string> usedModels)
+        {
+            if (roomId == "G-COM")
+            {
+                AddModel(placements, models, usedModels, "Mesa de comedor con sillas", MansionPlacementKind.Center);
+                AddModel(placements, models, usedModels, "platoroto", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "tazarota", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "lampara", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                return;
+            }
+            if (roomId.StartsWith("U-D", StringComparison.Ordinal) && roomId != "U-D5")
+            {
+                AddModel(placements, models, usedModels, "cama", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Mesilla de noche", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "lampara", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                AddModel(placements, models, usedModels, "frenteventana", MansionPlacementKind.Window);
+                if (roomId == "U-D1") AddModel(placements, models, usedModels, "mesaconlampara", MansionPlacementKind.Furniture);
+                if (roomId == "U-D3") AddModel(placements, models, usedModels, "Reloj infantil", MansionPlacementKind.Surface);
+                return;
+            }
+            if (roomId == "U-D5")
+            {
+                AddModel(placements, models, usedModels, "cunadebebe", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "cama", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Muñeca", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "osito", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "caballitodemadera", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                AddModel(placements, models, usedModels, "frenteventana", MansionPlacementKind.Window);
+                return;
+            }
+            if (roomId == "G-BAN" || roomId == "U-B1" || roomId == "U-B2")
+            {
+                AddModel(placements, models, usedModels, "tolet", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Espejo de recibidor", MansionPlacementKind.Wall);
+                if (roomId != "G-BAN") AddModel(placements, models, usedModels, "bañera", MansionPlacementKind.Furniture);
+                return;
+            }
+            if (roomId == "G-COC")
+            {
+                AddModel(placements, models, usedModels, "cocinaagas", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "refrigerador", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Estantería con libros", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "tazarota", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "platoroto", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "lata", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner);
+                return;
+            }
+            if (roomId == "G-DES")
+            {
+                AddModel(placements, models, usedModels, "Estantería con libros", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "lata", MansionPlacementKind.Surface, 2);
+                AddModel(placements, models, usedModels, "platoroto", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "tazarota", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner);
+                return;
+            }
+            if (roomId == "G-SAL" || roomId == "G-TV")
+            {
+                AddModel(placements, models, usedModels, "Sofá", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Televisor viejo", MansionPlacementKind.Wall);
+                AddModel(placements, models, usedModels, "mesaconlampara", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Radio", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "Mecedora", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "maceta", MansionPlacementKind.Corner);
+                if (roomId == "G-TV") AddModel(placements, models, usedModels, "Muñeca", MansionPlacementKind.Surface);
+                return;
+            }
+            if (roomId == "G-EST")
+            {
+                AddModel(placements, models, usedModels, "mesaconlampara", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Máquina de escribir", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "Libro de escritura", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                return;
+            }
+            if (roomId == "G-BIB")
+            {
+                AddModel(placements, models, usedModels, "Estantería con libros", MansionPlacementKind.Furniture, 2);
+                AddModel(placements, models, usedModels, "librogrueso", MansionPlacementKind.Surface, 2);
+                AddModel(placements, models, usedModels, "Mecedora", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                return;
+            }
+            if (roomId == "G-GAR")
+            {
+                AddModel(placements, models, usedModels, "cajadeherramientas", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "escaleras", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner, 2);
+                AddModel(placements, models, usedModels, "lata", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "caballitodemadera", MansionPlacementKind.Corner);
+                return;
+            }
+            if (roomId == "G-REC" || roomId == "U-COR" || roomId == "U-S1-HALL" || roomId == "U-COR-E" || roomId == "G-SER")
+            {
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                if (roomId == "G-REC") AddModel(placements, models, usedModels, "Espejo de recibidor", MansionPlacementKind.Wall);
+                if (roomId != "U-COR-E") AddModel(placements, models, usedModels, "maceta", MansionPlacementKind.Corner);
+                if (roomId == "G-SER" || roomId == "U-S1-HALL") AddModel(placements, models, usedModels, "Maniquí", MansionPlacementKind.Corner);
+                if (roomId == "G-SER") AddModel(placements, models, usedModels, "interruptor", MansionPlacementKind.Switch);
+                return;
+            }
+            if (roomId == "U-COS" || roomId == "U-GAL-E" || roomId == "G-AMP")
+            {
+                AddModel(placements, models, usedModels, "Maniquí", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "cajademusica", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
+                AddModel(placements, models, usedModels, "maceta", MansionPlacementKind.Corner);
+                return;
+            }
+            if (roomId == "B-GEN")
+            {
+                AddModel(placements, models, usedModels, "Generador", MansionPlacementKind.Furniture);
+                AddModel(placements, models, usedModels, "cajadeherramientas", MansionPlacementKind.Corner);
+                return;
+            }
+            if (roomId == "B-CAL")
+            {
+                AddModel(placements, models, usedModels, "caldera", MansionPlacementKind.Furniture);
+                return;
+            }
+            if (roomId == "B-BOD")
+            {
+                AddModel(placements, models, usedModels, "Estantería con libros", MansionPlacementKind.Furniture, 2);
+                AddModel(placements, models, usedModels, "botella", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "lata", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner, 2);
+                AddModel(placements, models, usedModels, "maletindemetal", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "Agua bendita", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "ajo", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "amuleto", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "estaca", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "incienso", MansionPlacementKind.Surface);
+                return;
+            }
+            if (roomId == "B-COR" || roomId == "B-ESC")
+            {
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "cajadecables", MansionPlacementKind.Corner);
+                if (roomId == "B-ESC") AddModel(placements, models, usedModels, "escaleras", MansionPlacementKind.Furniture);
+                return;
+            }
+            if (roomId == "A-OPEN")
+            {
+                AddModel(placements, models, usedModels, "Cajas de almacén", MansionPlacementKind.Corner, 3);
+                AddModel(placements, models, usedModels, "maletindemetal", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "cd1da979c0aa41a2e056ddf80ea043ad", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "Mecedora", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "Maniquí", MansionPlacementKind.Corner);
+                AddModel(placements, models, usedModels, "frenteventana", MansionPlacementKind.Window);
+            }
         }
 
         private static void AddRoomClues(MansionLayoutSpace space, List<Placement> placements, List<string> models,
@@ -300,7 +554,7 @@ namespace UltimaCinta.Editor
         }
 
         private static void AddHideouts(List<(string Room, string Type, int Count)> hideouts, List<MansionLayoutSpace> spaces,
-            Dictionary<string, List<Placement>> placements, List<string> models)
+            Dictionary<string, List<Placement>> placements, Dictionary<string, string> models, HashSet<string> usedModels)
         {
             foreach (var entry in hideouts)
             {
@@ -309,15 +563,9 @@ namespace UltimaCinta.Editor
                 if (room == null) continue;
                 for (var index = 0; index < entry.Count; index++)
                 {
-                    var modelName = HideoutModel(entry.Type, index);
-                    var asset = FindModel(models, modelName);
-                    var offset = entry.Count > 1 ? (index == 0 ? -0.75f : 0.75f) : 0f;
-                    list.Add(new Placement
-                    {
-                        Asset = asset,
-                        Name = "Escondite_" + entry.Room + "_" + (index + 1),
-                        Position = RoomOffset(room, offset, 1.0f)
-                    });
+                    var stem = NormalizeModelName(HideoutModel(entry.Type, index));
+                    AddModel(list, models, usedModels, stem, MansionPlacementKind.Hideout, 1,
+                        "Escondite_" + entry.Room + "_" + (index + 1));
                 }
             }
         }
@@ -332,28 +580,77 @@ namespace UltimaCinta.Editor
             return "armario";
         }
 
-        private static void AddKeys(Dictionary<string, List<Placement>> placements, List<MansionLayoutSpace> spaces, List<string> models)
+        private static void AddKeys(Dictionary<string, List<Placement>> placements, Dictionary<string, string> models, HashSet<string> usedModels)
         {
-            var upperRoom = spaces.Find(space => space.Id == "G-EST");
-            var basementKeyRoom = spaces.Find(space => space.Id == "U-D1");
-            AddAt(placements, "G-EST", FindModel(models, "llave"), "Llave_KEY_UPPER", upperRoom == null ? Vector3.zero : RoomCenter(upperRoom, PlacementY));
-            AddAt(placements, "U-D1", FindModel(models, "llave"), "Llave_KEY_BASEMENT", basementKeyRoom == null ? Vector3.zero : RoomCenter(basementKeyRoom, PlacementY));
+            AddModel(placements["G-EST"], models, usedModels, "llave", MansionPlacementKind.Key, 1, "Llave_KEY_UPPER");
+            AddModel(placements["U-D1"], models, usedModels, "llave", MansionPlacementKind.Key, 1, "Llave_KEY_BASEMENT");
         }
 
-        private static void AddRitualItems(Dictionary<string, List<Placement>> placements, List<MansionLayoutSpace> spaces, List<string> models)
+        private static void AddRitualItems(Dictionary<string, List<Placement>> placements, Dictionary<string, string> models, HashSet<string> usedModels)
         {
-            var items = new[] { "campana", "crusifijo", "espejo roto", "sal", "vela negra" };
-            var room = spaces.Find(space => space.Id == "B-RIT");
-            for (var index = 0; index < items.Length; index++)
-                AddAt(placements, "B-RIT", FindModel(models, items[index]), "Objeto_Ritual_" + items[index],
-                    room == null ? Vector3.zero : RoomOffset(room, (index - 2) * 0.65f, 1.1f));
-            var generatorRoom = spaces.Find(space => space.Id == "B-GEN");
-            AddAt(placements, "B-GEN", FindModel(models, "Generador"), "Generador_Sotano", generatorRoom == null ? Vector3.zero : RoomCenter(generatorRoom, PlacementY));
+            AddModel(placements["B-RIT"], models, usedModels, "ouija", MansionPlacementKind.Center);
+            AddModel(placements["B-RIT"], models, usedModels, "vela negra", MansionPlacementKind.RitualFloor, 3);
+            AddModel(placements["B-RIT"], models, usedModels, "campana", MansionPlacementKind.Surface);
+            AddModel(placements["B-RIT"], models, usedModels, "crusifijo", MansionPlacementKind.Wall);
+            AddModel(placements["B-RIT"], models, usedModels, "espejo roto", MansionPlacementKind.Wall);
+            AddModel(placements["B-RIT"], models, usedModels, "sal", MansionPlacementKind.Surface);
         }
 
-        private static void AddAt(Dictionary<string, List<Placement>> placements, string room, string asset, string name, Vector3 offset)
+        private static void AddVanGear(Dictionary<string, string> models, HashSet<string> usedModels)
         {
-            if (placements.TryGetValue(room, out var list)) list.Add(new Placement { Asset = asset, Name = name, Position = offset });
+            var gear = new[]
+            {
+                "linterna", "Medidor EMF", "Termómetro", "Cinta", "Batería", "Diario", "Libro de escritura",
+                "vela blanca", "ajo", "amuleto", "Agua bendita", "estaca", "incienso", "botella de agua"
+            };
+            foreach (var item in gear)
+                if (models.TryGetValue(NormalizeModelName(item), out var path)) usedModels.Add(path);
+            if (models.TryGetValue("camcorder", out var camcorder)) usedModels.Add(camcorder);
+            if (models.TryGetValue("camioneta", out var van)) usedModels.Add(van);
+        }
+
+        private static void AddUnassignedModels(Dictionary<string, List<Placement>> placements, List<string> modelPaths,
+            Dictionary<string, string> models, HashSet<string> usedModels, List<string> omittedDetails, ref int omitted)
+        {
+            foreach (var path in modelPaths)
+            {
+                if (usedModels.Contains(path)) continue;
+                var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+                var room = FallbackRoomFor(stem);
+                var kind = FallbackKindFor(stem);
+                if (!placements.TryGetValue(room, out var list))
+                {
+                    OmitObject(room, stem, "sin candidatos", omittedDetails);
+                    omitted++;
+                    continue;
+                }
+                AddModel(list, models, usedModels, stem, kind);
+            }
+        }
+
+        private static string FallbackRoomFor(string stem)
+        {
+            if (stem.Contains("banera") || stem.Contains("tolet") || stem.Contains("espejo")) return "U-B1";
+            if (stem.Contains("cocina") || stem.Contains("refrigerador") || stem.Contains("taza") || stem.Contains("plato")) return "G-COC";
+            if (stem.Contains("cama") || stem.Contains("armario") || stem.Contains("muneca") || stem.Contains("osito")) return "U-D1";
+            if (stem.Contains("foto") || stem.Contains("maceta") || stem.Contains("interruptor")) return "G-REC";
+            if (stem.Contains("libro") || stem.Contains("estanteria") || stem.Contains("maquina")) return "G-BIB";
+            if (stem.Contains("ritual") || stem.Contains("vela") || stem.Contains("campana") || stem.Contains("crusifijo") || stem.Contains("sal")) return "B-RIT";
+            if (stem.Contains("generador")) return "B-GEN";
+            if (stem.Contains("caldera")) return "B-CAL";
+            if (stem.Contains("caja") || stem.Contains("cable") || stem.Contains("herramienta") || stem.Contains("maletin")) return "B-BOD";
+            if (stem.Contains("sofa") || stem.Contains("radio") || stem.Contains("televisor") || stem.Contains("mecedora")) return "G-SAL";
+            return "B-BOD";
+        }
+
+        private static MansionPlacementKind FallbackKindFor(string stem)
+        {
+            if (stem.Contains("foto") || stem.Contains("espejo") || stem.Contains("crusifijo")) return MansionPlacementKind.Wall;
+            if (stem.Contains("caja") || stem.Contains("cable") || stem.Contains("maletin") || stem.Contains("herramienta")) return MansionPlacementKind.Corner;
+            if (stem.Contains("lata") || stem.Contains("botella") || stem.Contains("radio") || stem.Contains("libro") || stem.Contains("vela")) return MansionPlacementKind.Surface;
+            if (stem.Contains("interruptor")) return MansionPlacementKind.Switch;
+            if (stem.Contains("frenteventana")) return MansionPlacementKind.Window;
+            return MansionPlacementKind.Furniture;
         }
 
         private static Transform ResetDecorationContainer(Transform room)
@@ -368,17 +665,17 @@ namespace UltimaCinta.Editor
         private static void PlaceRoomObjects(MansionLayoutSpace space, GameObject room, Transform container,
             List<Placement> placements, List<string> models, List<MansionLayoutSpace> allSpaces,
             List<MansionLayoutDoor> doors, List<MansionLayoutStair> stairs,
-            ref int placed, ref int placeholders, ref int hideoutCount, List<string> keyLocations)
+            ref int placed, ref int omitted, ref int hideoutCount, List<string> keyLocations, List<string> omittedDetails)
         {
-            var occupied = new List<Bounds>();
-            var surfaces = new List<Bounds>();
+            var occupied = new List<PlacedObject>();
+            var surfaces = new List<SupportSurface>();
             placements.Sort((left, right) => PlacementPriority(left).CompareTo(PlacementPriority(right)));
             foreach (var placement in placements)
             {
                 if (placement.Name.StartsWith("Escondite_", StringComparison.Ordinal) &&
                     Path.GetFileNameWithoutExtension(placement.Asset ?? string.Empty).IndexOf("cama", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    var existingBed = container.Find("Cama_" + space.Id);
+                    var existingBed = container.Find("cama") ?? container.Find("cunadebebe");
                     if (existingBed != null)
                     {
                         existingBed.name = placement.Name;
@@ -389,29 +686,34 @@ namespace UltimaCinta.Editor
                 var asset = string.IsNullOrEmpty(placement.Asset) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(placement.Asset);
                 if (asset == null)
                 {
-                    Debug.LogWarning($"MansionDecorator: se omite {placement.Name} en {space.Id}; no se encontró su FBX.");
+                    OmitObject(space.Id, placement.Name, "sin candidatos", omittedDetails);
+                    omitted++;
                     continue;
                 }
                 var instance = PrefabUtility.InstantiatePrefab(asset, room.scene) as GameObject;
                 if (instance == null) instance = UnityEngine.Object.Instantiate(asset);
                 instance.name = placement.Name;
                 instance.transform.SetParent(container, false);
-                var isHanging = IsWallHanging(placement);
-                var isFurniture = IsLargeFurniture(placement);
-                var isKey = placement.Name.StartsWith("Llave_", StringComparison.Ordinal);
+                var isHanging = placement.Kind == MansionPlacementKind.Wall || placement.Kind == MansionPlacementKind.Window || placement.Kind == MansionPlacementKind.Switch;
+                var isFurniture = placement.Kind == MansionPlacementKind.Furniture || placement.Kind == MansionPlacementKind.Hideout;
+                var isKey = placement.Kind == MansionPlacementKind.Key;
                 var targetSize = TargetSize(placement);
                 if (!TryGetRendererBounds(instance, out var sourceBounds))
                 {
-                    Debug.LogWarning($"MansionDecorator: se omite {placement.Name} en {space.Id}; el FBX no tiene Renderers.");
+                    OmitObject(space.Id, placement.Name, "sin candidatos", omittedDetails);
                     UnityEngine.Object.DestroyImmediate(instance);
+                    omitted++;
                     continue;
                 }
                 ScaleToTarget(instance.transform, sourceBounds.size, targetSize);
                 var scaledScale = instance.transform.localScale;
 
-                var candidates = BuildPlacementCandidates(space, placement, instance, isFurniture, isHanging, isKey, surfaces, doors);
+                var candidates = BuildPlacementCandidates(space, placement, instance, allSpaces, surfaces, doors);
                 Bounds finalBounds = default;
                 var fit = false;
+                var relaxedDining = false;
+                string failureReason = candidates.Count == 0 ? "sin candidatos" : "fuera del cuarto";
+                SupportSurface selectedSurface = null;
                 foreach (var candidate in candidates)
                 {
                     instance.transform.localScale = scaledScale;
@@ -419,25 +721,81 @@ namespace UltimaCinta.Editor
                     if (!TryGetRendererBounds(instance, out var initialBounds)) continue;
                     var bounds = initialBounds;
                     var desiredCenter = candidate.center;
-                    if (!isHanging && !isKey && !candidate.onSurface)
+                    if (placement.Kind == MansionPlacementKind.RitualFloor)
+                        desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                    else if (!isHanging && !isKey && !candidate.onSurface)
                         desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
                     if (candidate.onSurface)
-                        desiredCenter.y = candidate.surface.max.y + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                        desiredCenter.y = candidate.surface.Bounds.max.y + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
                     SetBoundsCenter(instance.transform, bounds, desiredCenter);
-                    if (!TryGetRendererBounds(instance, out bounds) || !FitsRoom(bounds, space.Bounds) ||
-                        (placement.Name.IndexOf("Mesa_Comedor", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                         !HasRoomClearance(bounds, space.Bounds, MansionDecorationConstants.DiningClearance)) ||
-                        IntersectsOccupied(bounds, occupied) || ViolatesDoorOrStairClearance(bounds, space, allSpaces, doors, stairs)) continue;
+                    if (!TryGetRendererBounds(instance, out bounds) || !FitsRoom(bounds, space.Bounds))
+                    {
+                        failureReason = "fuera del cuarto";
+                        continue;
+                    }
+
+                    var diningTable = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "mesadecomedorconsillas";
+                    if (diningTable && !HasRoomClearance(bounds, space.Bounds, MansionDecorationConstants.DiningClearance))
+                    {
+                        if (!HasRoomClearance(bounds, space.Bounds, 0.6f))
+                        {
+                            failureReason = "fuera del cuarto";
+                            continue;
+                        }
+                        relaxedDining = true;
+                    }
+
+                    if (candidate.onSurface)
+                    {
+                        if (!FitsSurface(bounds, candidate.surface))
+                        {
+                            failureReason = "fuera del cuarto";
+                            continue;
+                        }
+                        var overlap = FindSurfaceOverlap(bounds, occupied, candidate.surface.Id);
+                        if (overlap != null)
+                        {
+                            failureReason = "solapa con " + overlap;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        var overlap = FindOverlap(bounds, occupied);
+                        if (overlap != null)
+                        {
+                            failureReason = "solapa con " + overlap;
+                            continue;
+                        }
+                        var obstruction = ViolatesDoorOrStairClearance(bounds, space, placement.Kind, allSpaces, doors, stairs);
+                        if (obstruction != null)
+                        {
+                            failureReason = obstruction;
+                            continue;
+                        }
+                    }
                     finalBounds = bounds;
+                    selectedSurface = candidate.surface;
                     fit = true;
                     break;
                 }
                 if (!fit)
                 {
-                    Debug.LogWarning($"MansionDecorator: se omite {placement.Name} en {space.Id}; no cabe sin bloquear puertas, escaleras ni otros objetos.");
+                    if (isKey)
+                    {
+                        var detail = space.Id + ":" + placement.Name;
+                        omittedDetails.Add(detail + " (" + failureReason + ")");
+                        omitted++;
+                        Debug.LogError($"MansionDecorator: no se pudo colocar {placement.Name} en {space.Id}; {failureReason}.");
+                    }
+                    else
+                        OmitObject(space.Id, placement.Name, failureReason, omittedDetails);
                     UnityEngine.Object.DestroyImmediate(instance);
                     continue;
                 }
+
+                if (relaxedDining)
+                    Debug.LogWarning($"MansionDecorator: Mesa de comedor con sillas en {space.Id} requiere 0.6 m libres; no alcanza 0.9 m.");
 
                 RemoveChildColliders(instance.transform);
                 var pickup = instance.GetComponent<PickupInteractable>();
@@ -445,15 +803,25 @@ namespace UltimaCinta.Editor
                 {
                     var keyId = placement.Name.Substring("Llave_".Length);
                     pickup = pickup ?? instance.AddComponent<PickupInteractable>();
-                    pickup.SetItem(LoadOrCreateKeyItem(keyId));
-                    keyLocations.Add(keyId + " en " + space.Id);
+                    pickup.SetItem(LoadOrCreateInventoryItem(keyId));
+                    keyLocations.Add(placement.Name + " en " + space.Id + " sobre " + (selectedSurface != null ? selectedSurface.Name : "superficie alternativa"));
                 }
                 AddBoundsCollider(instance, finalBounds, placement, pickup != null);
-                occupied.Add(finalBounds);
-                if (isFurniture) surfaces.Add(finalBounds);
+                occupied.Add(new PlacedObject { Name = placement.Name, Bounds = finalBounds, SupportId = selectedSurface != null ? selectedSurface.Id : null });
+                if (isFurniture || placement.Kind == MansionPlacementKind.Center)
+                {
+                    var surface = new SupportSurface { Id = placement.Name, Name = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)), Bounds = finalBounds };
+                    surfaces.Add(surface);
+                }
                 if (placement.Name.StartsWith("Escondite_", StringComparison.Ordinal)) hideoutCount++;
                 placed++;
             }
+        }
+
+        private static void OmitObject(string room, string name, string reason, List<string> omittedDetails)
+        {
+            omittedDetails.Add(room + ":" + name + " (" + reason + ")");
+            Debug.LogWarning($"MansionDecorator: omitido {room}:{name}; {reason}.");
         }
 
         private sealed class PlacementCandidate
@@ -461,194 +829,271 @@ namespace UltimaCinta.Editor
             public Vector3 center;
             public float yaw;
             public bool onSurface;
-            public Bounds surface;
+            public SupportSurface surface;
         }
 
         private static int PlacementPriority(Placement placement)
         {
-            if (placement.Name.StartsWith("Cama_", StringComparison.Ordinal)) return -1;
-            if (placement.Name.StartsWith("Llave_", StringComparison.Ordinal)) return 2;
-            if (placement.Name.StartsWith("Escondite_", StringComparison.Ordinal)) return 1;
-            if (IsLargeFurniture(placement)) return 0;
+            if (placement.Kind == MansionPlacementKind.Furniture || placement.Kind == MansionPlacementKind.Hideout || placement.Kind == MansionPlacementKind.Center) return 0;
+            if (placement.Kind == MansionPlacementKind.Key) return 1;
+            if (placement.Kind == MansionPlacementKind.Surface) return 2;
+            if (placement.Kind == MansionPlacementKind.RitualFloor) return 2;
             return 1;
         }
 
         private static List<PlacementCandidate> BuildPlacementCandidates(MansionLayoutSpace space, Placement placement,
-            GameObject instance, bool isFurniture, bool isHanging, bool isKey, List<Bounds> surfaces, List<MansionLayoutDoor> doors)
+            GameObject instance, List<MansionLayoutSpace> allSpaces, List<SupportSurface> surfaces, List<MansionLayoutDoor> doors)
         {
             var result = new List<PlacementCandidate>();
             var floorY = MansionGenerator.FloorY(space.Level);
-            if (IsStoredJunk(placement))
+            if (placement.Kind == MansionPlacementKind.Key)
             {
-                for (var index = 0; index < 4; index++)
-                {
-                    var column = index % 2;
-                    var row = index / 2;
-                    var yaw = 45f + index * 90f;
-                    instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-                    if (!TryGetRendererBounds(instance, out var boxBounds)) continue;
-                    result.Add(new PlacementCandidate
-                    {
-                        center = new Vector3(space.Bounds.xMin + boxBounds.extents.x + MansionDecorationConstants.WallOffset + column * (boxBounds.size.x + MansionDecorationConstants.WallOffset),
-                            floorY, space.Bounds.yMin + boxBounds.extents.z + MansionDecorationConstants.WallOffset + row * (boxBounds.size.z + MansionDecorationConstants.WallOffset)),
-                        yaw = yaw
-                    });
-                }
+                var preferred = new List<SupportSurface>();
+                foreach (var surface in surfaces)
+                    if (surface.Name == "mesaconlampara") preferred.Add(surface);
+                AddSurfaceCandidates(result, instance, preferred);
+                foreach (var surface in surfaces)
+                    if (!preferred.Contains(surface)) AddSurfaceCandidates(result, instance, new List<SupportSurface> { surface });
                 return result;
             }
-            if (isFurniture && placement.Name.IndexOf("Mesa_Comedor", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (placement.Kind == MansionPlacementKind.Surface)
+            {
+                AddSurfaceCandidates(result, instance, surfaces);
+                return result;
+            }
+            if (placement.Kind == MansionPlacementKind.Center)
+            {
                 result.Add(new PlacementCandidate { center = new Vector3(space.Bounds.center.x, floorY, space.Bounds.center.y) });
-
-            if (space.Id == "G-SAL" || space.Id == "G-TV")
+                return result;
+            }
+            if (placement.Kind == MansionPlacementKind.RitualFloor)
             {
-                if (placement.Name.StartsWith("Sofa_", StringComparison.Ordinal))
+                var angle = placement.InstanceIndex * 120f * Mathf.Deg2Rad;
+                var radius = 1.35f;
+                result.Add(new PlacementCandidate
                 {
-                    instance.transform.localRotation = Quaternion.identity;
-                    if (TryGetRendererBounds(instance, out var sofaBounds))
-                        result.Add(new PlacementCandidate { center = new Vector3(space.Bounds.center.x, floorY, space.Bounds.yMin + sofaBounds.extents.z + MansionDecorationConstants.WallOffset), yaw = 0f });
-                }
-                else if (placement.Name.StartsWith("Televisor_", StringComparison.Ordinal))
+                    center = new Vector3(space.Bounds.center.x + Mathf.Cos(angle) * radius, floorY,
+                        space.Bounds.center.y + Mathf.Sin(angle) * radius)
+                });
+                return result;
+            }
+            if (placement.Kind == MansionPlacementKind.Corner)
+            {
+                AddCornerCandidates(result, space, instance, placement, floorY);
+                return result;
+            }
+            if (NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "mesilladenoche")
+            {
+                var bed = surfaces.Find(item => item.Name == "cama");
+                if (bed != null)
                 {
-                    instance.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                    if (TryGetRendererBounds(instance, out var tvBounds))
-                        result.Add(new PlacementCandidate { center = new Vector3(space.Bounds.center.x, floorY, space.Bounds.yMax - tvBounds.extents.z - MansionDecorationConstants.WallOffset), yaw = 180f });
+                    AddBedsideCandidates(result, instance, bed.Bounds, floorY);
+                    return result;
                 }
             }
-
-            if (isKey)
+            if (placement.Kind == MansionPlacementKind.Switch)
             {
-                if (surfaces.Count > 0)
-                {
-                    var surface = surfaces[surfaces.Count - 1];
-                    foreach (var offset in new[] { Vector2.zero, Vector2.left * 0.2f, Vector2.right * 0.2f, Vector2.up * 0.2f, Vector2.down * 0.2f })
-                    {
-                        result.Add(new PlacementCandidate
-                        {
-                            center = new Vector3(surface.center.x + offset.x, surface.max.y, surface.center.z + offset.y),
-                            onSurface = true,
-                            surface = surface
-                        });
-                    }
-                }
+                AddSwitchCandidate(result, space, instance, doors, floorY);
                 return result;
             }
 
-            if (!isFurniture && !isHanging)
-            {
-                for (var index = surfaces.Count - 1; index >= 0; index--)
-                {
-                    var surface = surfaces[index];
-                    var fraction = (index % 3 - 1) * 0.2f;
-                    result.Add(new PlacementCandidate
-                    {
-                        center = new Vector3(surface.center.x + fraction, surface.max.y, surface.center.z),
-                        onSurface = true,
-                        surface = surface
-                    });
-                }
-            }
-
-            var wallOffsets = new[] { 0.25f, 0.5f, 0.75f };
-            for (var wall = 0; wall < 4; wall++)
-            for (var offsetIndex = 0; offsetIndex < wallOffsets.Length; offsetIndex++)
-            {
-                var offset = wallOffsets[offsetIndex];
-                Vector3 inward;
-                Vector3 target;
-                switch (wall)
-                {
-                    case 0: inward = Vector3.right; target = new Vector3(space.Bounds.xMin, floorY, Mathf.Lerp(space.Bounds.yMin, space.Bounds.yMax, offset)); break;
-                    case 1: inward = Vector3.left; target = new Vector3(space.Bounds.xMax, floorY, Mathf.Lerp(space.Bounds.yMin, space.Bounds.yMax, offset)); break;
-                    case 2: inward = Vector3.forward; target = new Vector3(Mathf.Lerp(space.Bounds.xMin, space.Bounds.xMax, offset), floorY, space.Bounds.yMin); break;
-                    default: inward = Vector3.back; target = new Vector3(Mathf.Lerp(space.Bounds.xMin, space.Bounds.xMax, offset), floorY, space.Bounds.yMax); break;
-                }
-                var yaw = Quaternion.LookRotation(inward).eulerAngles.y;
-                instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-                if (!TryGetRendererBounds(instance, out var bounds)) continue;
-                var extents = new Vector3(bounds.extents.x, 0f, bounds.extents.z);
-                if (isHanging)
-                {
-                    target.y += MansionDecorationConstants.WallHangingHeight;
-                    if (Mathf.Abs(inward.x) > 0f) target.x += inward.x * (extents.x + MansionDecorationConstants.WallOffset);
-                    else target.z += inward.z * (extents.z + MansionDecorationConstants.WallOffset);
-                }
-                else if (Mathf.Abs(inward.x) > 0f) target.x += inward.x * (extents.x + MansionDecorationConstants.WallOffset);
-                else target.z += inward.z * (extents.z + MansionDecorationConstants.WallOffset);
-                if (isHanging && placement.Name.IndexOf("puerta", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    var entry = doors.Find(door => door.A == space.Id && door.B == "EXTERIOR");
-                    if (entry != null)
-                    {
-                        var doorPoint = entry.Axis == 'X'
-                            ? new Vector3(entry.Position, target.y, (entry.Min + entry.Max) * MansionDecorationConstants.Half)
-                            : new Vector3((entry.Min + entry.Max) * MansionDecorationConstants.Half, target.y, entry.Position);
-                        var look = doorPoint - target;
-                        if (look.sqrMagnitude > Mathf.Epsilon) yaw = Quaternion.LookRotation(look).eulerAngles.y;
-                    }
-                }
-                result.Add(new PlacementCandidate { center = target, yaw = yaw });
-            }
-
-            if (!isFurniture && !isHanging && surfaces.Count == 0)
-            {
-                var corner = new Vector3(space.Bounds.xMin + MansionDecorationConstants.WallOffset, floorY, space.Bounds.yMin + MansionDecorationConstants.WallOffset);
-                result.Add(new PlacementCandidate { center = corner, yaw = 45f });
-            }
+            AddWallCandidates(result, space, instance, placement, allSpaces, floorY);
             return result;
         }
 
-        private static bool IsLargeFurniture(Placement placement)
+        private static void AddBedsideCandidates(List<PlacementCandidate> result, GameObject instance, Bounds bed, float floorY)
         {
-            var name = (placement.Name + " " + placement.Asset).ToLowerInvariant();
-            return name.Contains("cama") || name.Contains("armario") || name.Contains("mesilla") || name.Contains("estanter") ||
-                   name.Contains("sofa") || name.Contains("sofá") || name.Contains("nevera") || name.Contains("refrigerador") ||
-                   name.Contains("cocina") || name.Contains("televisor") || name.Contains("mesa_comedor") || name.Contains("escritorio") ||
-                   name.Contains("generador") || name.Contains("caldera") || name.Contains("bañera") || name.Contains("tolet");
+            if (!TryGetRendererBounds(instance, out var nightstand)) return;
+            var horizontalX = bed.size.x >= bed.size.z;
+            var offset = horizontalX
+                ? new Vector3(bed.extents.x + nightstand.extents.x + MansionDecorationConstants.ObjectWallGap, 0f, 0f)
+                : new Vector3(0f, 0f, bed.extents.z + nightstand.extents.z + MansionDecorationConstants.ObjectWallGap);
+            result.Add(new PlacementCandidate { center = new Vector3(bed.center.x + offset.x, floorY, bed.center.z + offset.z) });
+            result.Add(new PlacementCandidate { center = new Vector3(bed.center.x - offset.x, floorY, bed.center.z - offset.z) });
         }
 
-        private static bool IsWallHanging(Placement placement)
+        private static void AddSurfaceCandidates(List<PlacementCandidate> result, GameObject instance, List<SupportSurface> surfaces)
         {
-            var name = (placement.Name + " " + placement.Asset).ToLowerInvariant();
-            return name.Contains("fotografia") || name.Contains("fotografía") || name.Contains("espejo de recibidor");
+            if (!TryGetRendererBounds(instance, out var objectBounds)) return;
+            for (var index = surfaces.Count - 1; index >= 0; index--)
+            {
+                var surface = surfaces[index];
+                var minX = surface.Bounds.min.x + objectBounds.extents.x;
+                var maxX = surface.Bounds.max.x - objectBounds.extents.x;
+                var minZ = surface.Bounds.min.z + objectBounds.extents.z;
+                var maxZ = surface.Bounds.max.z - objectBounds.extents.z;
+                for (var x = minX; x <= maxX + MansionGeneratorConstants.GridTolerance; x += 0.1f)
+                for (var z = minZ; z <= maxZ + MansionGeneratorConstants.GridTolerance; z += 0.1f)
+                    result.Add(new PlacementCandidate
+                    {
+                        center = new Vector3(x, surface.Bounds.max.y, z),
+                        onSurface = true,
+                        surface = surface
+                    });
+            }
         }
 
-        private static bool IsStoredJunk(Placement placement)
+        private static void AddCornerCandidates(List<PlacementCandidate> result, MansionLayoutSpace space,
+            GameObject instance, Placement placement, float floorY)
         {
-            var name = (placement.Name + " " + placement.Asset).ToLowerInvariant();
-            return name.Contains("caja") || name.Contains("lata") || name.Contains("trasto");
+            var isStorageBox = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "cajasdealmacen";
+            for (var corner = 0; corner < 4; corner++)
+            {
+                var inward = new Vector3(corner % 2 == 0 ? 1f : -1f, 0f, corner < 2 ? 1f : -1f).normalized;
+                var yaw = Quaternion.LookRotation(inward).eulerAngles.y;
+                instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                if (!TryGetRendererBounds(instance, out var bounds)) continue;
+                var x = corner % 2 == 0 ? space.Bounds.xMin + bounds.extents.x + MansionDecorationConstants.WallOffset :
+                    space.Bounds.xMax - bounds.extents.x - MansionDecorationConstants.WallOffset;
+                var z = corner < 2 ? space.Bounds.yMin + bounds.extents.z + MansionDecorationConstants.WallOffset :
+                    space.Bounds.yMax - bounds.extents.z - MansionDecorationConstants.WallOffset;
+                result.Add(new PlacementCandidate { center = new Vector3(x, floorY, z), yaw = yaw });
+                if (isStorageBox && placement.InstanceIndex > 0)
+                {
+                    var direction = corner % 2 == 0 ? 1f : -1f;
+                    var spacing = (bounds.extents.x * 2f + MansionDecorationConstants.SurfaceItemOffset) * placement.InstanceIndex;
+                    result.Add(new PlacementCandidate { center = new Vector3(x + direction * spacing, floorY, z), yaw = yaw });
+                }
+            }
+            AddWallCandidates(result, space, instance,
+                new Placement { Asset = "corner", Kind = MansionPlacementKind.Corner },
+                new List<MansionLayoutSpace> { space }, floorY);
+        }
+
+        private static void AddSwitchCandidate(List<PlacementCandidate> result, MansionLayoutSpace space, GameObject instance,
+            List<MansionLayoutDoor> doors, float floorY)
+        {
+            var door = doors.Find(item => item.A == space.Id || item.B == space.Id);
+            if (door == null) return;
+            var inward = door.Axis == 'X'
+                ? (space.Bounds.center.x >= door.Position ? Vector3.right : Vector3.left)
+                : (space.Bounds.center.y >= door.Position ? Vector3.forward : Vector3.back);
+            var along = door.Max + 0.14f;
+            var position = door.Axis == 'X' ? new Vector3(door.Position, floorY + MansionDecorationConstants.SwitchHeight, along) :
+                new Vector3(along, floorY + MansionDecorationConstants.SwitchHeight, door.Position);
+            if (door.Axis == 'X') position.x += inward.x * MansionDecorationConstants.ObjectWallGap;
+            else position.z += inward.z * MansionDecorationConstants.ObjectWallGap;
+            result.Add(new PlacementCandidate { center = position, yaw = Quaternion.LookRotation(inward).eulerAngles.y });
+        }
+
+        private static void AddWallCandidates(List<PlacementCandidate> result, MansionLayoutSpace space, GameObject instance,
+            Placement placement, List<MansionLayoutSpace> allSpaces, float floorY)
+        {
+            var alongPositions = new[] { 0.25f, 0.5f, 0.75f };
+            var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset));
+            var edgeOrder = stem == "sofa" ? new[] { 2, 3, 0, 1 } :
+                stem == "televisorviejo" ? new[] { 3, 2, 0, 1 } : new[] { 0, 1, 2, 3 };
+            foreach (var edgeIndex in edgeOrder)
+            for (var index = 0; index < alongPositions.Length; index++)
+            {
+                var alongFraction = alongPositions[index];
+                char axis;
+                float wallPosition;
+                float along;
+                if (edgeIndex == 0)
+                {
+                    axis = 'X'; wallPosition = space.Bounds.xMin; along = Mathf.Lerp(space.Bounds.yMin, space.Bounds.yMax, alongFraction);
+                }
+                else if (edgeIndex == 1)
+                {
+                    axis = 'X'; wallPosition = space.Bounds.xMax; along = Mathf.Lerp(space.Bounds.yMin, space.Bounds.yMax, alongFraction);
+                }
+                else if (edgeIndex == 2)
+                {
+                    axis = 'Z'; wallPosition = space.Bounds.yMin; along = Mathf.Lerp(space.Bounds.xMin, space.Bounds.xMax, alongFraction);
+                }
+                else
+                {
+                    axis = 'Z'; wallPosition = space.Bounds.yMax; along = Mathf.Lerp(space.Bounds.xMin, space.Bounds.xMax, alongFraction);
+                }
+                if (placement.Kind == MansionPlacementKind.Window && !IsExteriorEdge(space, allSpaces, axis, wallPosition)) continue;
+                AddWallCandidate(result, space, instance, axis, wallPosition, along, floorY,
+                    placement.Kind == MansionPlacementKind.Wall || placement.Kind == MansionPlacementKind.Window,
+                    placement.Kind == MansionPlacementKind.Window ? MansionDecorationConstants.WindowHeight :
+                    placement.Kind == MansionPlacementKind.Wall ? MansionDecorationConstants.WallHangingHeight :
+                    placement.Kind == MansionPlacementKind.Switch ? MansionDecorationConstants.SwitchHeight : 0f);
+            }
+        }
+
+        private static void AddWallCandidate(List<PlacementCandidate> result, MansionLayoutSpace space, GameObject instance,
+            char axis, float wallPosition, float along, float floorY, bool wallMounted, float height, float fixedYaw = float.NaN)
+        {
+            var inward = axis == 'X'
+                ? (wallPosition <= space.Bounds.center.x ? Vector3.right : Vector3.left)
+                : (wallPosition <= space.Bounds.center.y ? Vector3.forward : Vector3.back);
+            var yaw = float.IsNaN(fixedYaw) ? Quaternion.LookRotation(inward).eulerAngles.y : fixedYaw;
+            instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            if (!TryGetRendererBounds(instance, out var bounds)) return;
+            var center = axis == 'X'
+                ? new Vector3(wallPosition + inward.x * (bounds.extents.x + (wallMounted ? MansionDecorationConstants.ObjectWallGap : MansionDecorationConstants.WallOffset)),
+                    floorY + height, along)
+                : new Vector3(along, floorY + height,
+                    wallPosition + inward.z * (bounds.extents.z + (wallMounted ? MansionDecorationConstants.ObjectWallGap : MansionDecorationConstants.WallOffset)));
+            result.Add(new PlacementCandidate { center = center, yaw = yaw });
+        }
+
+        private static bool IsExteriorEdge(MansionLayoutSpace space, List<MansionLayoutSpace> allSpaces, char axis, float position)
+        {
+            foreach (var other in allSpaces)
+            {
+                if (other.Id == space.Id || other.Level != space.Level) continue;
+                var touching = axis == 'X'
+                    ? Mathf.Approximately(other.Bounds.xMin, position) || Mathf.Approximately(other.Bounds.xMax, position)
+                    : Mathf.Approximately(other.Bounds.yMin, position) || Mathf.Approximately(other.Bounds.yMax, position);
+                if (!touching) continue;
+                var overlap = axis == 'X'
+                    ? Mathf.Min(space.Bounds.yMax, other.Bounds.yMax) - Mathf.Max(space.Bounds.yMin, other.Bounds.yMin)
+                    : Mathf.Min(space.Bounds.xMax, other.Bounds.xMax) - Mathf.Max(space.Bounds.xMin, other.Bounds.xMin);
+                if (overlap > MansionGeneratorConstants.GridTolerance) return false;
+            }
+            return true;
         }
 
         private static Vector3 TargetSize(Placement placement)
         {
-            var name = (placement.Name + " " + placement.Asset).ToLowerInvariant();
-            if (name.Contains("llave_")) return Vector3.one * MansionDecorationConstants.KeySize;
-            if (name.Contains("camioneta")) return new Vector3(MansionDecorationConstants.VanLength, MansionDecorationConstants.VanHeight, MansionDecorationConstants.VanWidth);
-            if (name.Contains("lata")) return Vector3.one * 0.15f;
-            if (IsStoredJunk(placement)) return Vector3.one * MansionDecorationConstants.StorageBoxSize;
-            if (name.Contains("cama")) return new Vector3(MansionDecorationConstants.BedLength, MansionDecorationConstants.BedHeight, MansionDecorationConstants.BedWidth);
-            if (name.Contains("armario")) return new Vector3(MansionDecorationConstants.WardrobeWidth, MansionDecorationConstants.WardrobeHeight, MansionDecorationConstants.WardrobeDepth);
-            if (name.Contains("sofa") || name.Contains("sofá")) return new Vector3(MansionDecorationConstants.SofaLength, MansionDecorationConstants.SofaHeight, MansionDecorationConstants.SofaDepth);
-            if (name.Contains("mesa_comedor")) return new Vector3(MansionDecorationConstants.DiningTableLength, MansionDecorationConstants.DiningTableHeight, MansionDecorationConstants.DiningTableWidth);
-            if (name.Contains("estanter")) return new Vector3(MansionDecorationConstants.BookshelfWidth, MansionDecorationConstants.BookshelfHeight, MansionDecorationConstants.BookshelfDepth);
-            if (name.Contains("televisor")) return new Vector3(MansionDecorationConstants.TelevisionWidth, MansionDecorationConstants.TelevisionHeight, MansionDecorationConstants.TelevisionDepth);
-            if (name.Contains("cocina")) return new Vector3(MansionDecorationConstants.KitchenWidth, MansionDecorationConstants.CounterHeight, MansionDecorationConstants.KitchenDepth);
-            if (name.Contains("mesilla")) return new Vector3(MansionDecorationConstants.NightstandWidth, MansionDecorationConstants.NightstandHeight, MansionDecorationConstants.NightstandDepth);
-            if (name.Contains("nevera") || name.Contains("refrigerador")) return new Vector3(MansionDecorationConstants.FridgeWidth, MansionDecorationConstants.FridgeHeight, MansionDecorationConstants.FridgeWidth);
-            if (name.Contains("bañera")) return new Vector3(MansionDecorationConstants.BathtubWidth, MansionDecorationConstants.BathtubHeight, MansionDecorationConstants.BathtubLength);
-            if (name.Contains("tolet")) return new Vector3(MansionDecorationConstants.ToiletWidth, MansionDecorationConstants.ToiletHeight, MansionDecorationConstants.ToiletDepth);
-            if (name.Contains("fotografia") || name.Contains("fotografía")) return new Vector3(MansionDecorationConstants.PhotographWidth, MansionDecorationConstants.PhotographHeight, MansionDecorationConstants.PhotographDepth);
-            if (name.Contains("espejo de recibidor")) return new Vector3(MansionDecorationConstants.MirrorWidth, MansionDecorationConstants.MirrorHeight, MansionDecorationConstants.MirrorDepth);
-            if (IsLargeFurniture(placement)) return Vector3.one * MansionDecorationConstants.FurnitureMaxDimension;
+            var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset ?? placement.Name));
+            if (placement.Kind == MansionPlacementKind.Key) return Vector3.one * MansionDecorationConstants.KeySize;
+            if (stem == "camioneta") return new Vector3(MansionDecorationConstants.VanLength, MansionDecorationConstants.VanHeight, MansionDecorationConstants.VanWidth);
+            if (stem == "cama") return new Vector3(MansionDecorationConstants.BedLength, MansionDecorationConstants.BedHeight, MansionDecorationConstants.BedWidth);
+            if (stem == "armario") return new Vector3(MansionDecorationConstants.WardrobeWidth, MansionDecorationConstants.WardrobeHeight, MansionDecorationConstants.WardrobeDepth);
+            if (stem == "sofa") return new Vector3(MansionDecorationConstants.SofaLength, MansionDecorationConstants.SofaHeight, MansionDecorationConstants.SofaDepth);
+            if (stem == "mesadecomedorconsillas") return new Vector3(MansionDecorationConstants.DiningTableLength, MansionDecorationConstants.DiningTableHeight, MansionDecorationConstants.DiningTableWidth);
+            if (stem == "estanteriaconlibros") return new Vector3(MansionDecorationConstants.BookshelfWidth, MansionDecorationConstants.BookshelfHeight, MansionDecorationConstants.BookshelfDepth);
+            if (stem == "televisorviejo") return new Vector3(MansionDecorationConstants.TelevisionWidth, MansionDecorationConstants.TelevisionHeight, MansionDecorationConstants.TelevisionDepth);
+            if (stem == "cocinaagas") return new Vector3(MansionDecorationConstants.KitchenWidth, MansionDecorationConstants.CounterHeight, MansionDecorationConstants.KitchenDepth);
+            if (stem == "mesilladenoche") return new Vector3(MansionDecorationConstants.NightstandWidth, MansionDecorationConstants.NightstandHeight, MansionDecorationConstants.NightstandDepth);
+            if (stem == "refrigerador") return Vector3.one * MansionDecorationConstants.FridgeWidth + Vector3.up * (MansionDecorationConstants.FridgeHeight - MansionDecorationConstants.FridgeWidth);
+            if (stem == "banera") return new Vector3(MansionDecorationConstants.BathtubWidth, MansionDecorationConstants.BathtubHeight, MansionDecorationConstants.BathtubLength);
+            if (stem == "tolet") return new Vector3(MansionDecorationConstants.ToiletWidth, MansionDecorationConstants.ToiletHeight, MansionDecorationConstants.ToiletDepth);
+            if (stem == "fotografia") return new Vector3(MansionDecorationConstants.PhotographWidth, MansionDecorationConstants.PhotographHeight, MansionDecorationConstants.PhotographDepth);
+            if (stem == "espejoderecibidor") return new Vector3(MansionDecorationConstants.MirrorWidth, MansionDecorationConstants.MirrorHeight, MansionDecorationConstants.MirrorDepth);
+            if (stem == "espejoroto") return new Vector3(MansionDecorationConstants.MirrorWidth, MansionDecorationConstants.MirrorHeight, MansionDecorationConstants.MirrorDepth);
+            if (stem == "frenteventana") return new Vector3(1.2f, 1.0f, 0.08f);
+            if (stem == "interruptor") return new Vector3(0.12f, 0.12f, 0.05f);
+            if (stem == "mesaconlampara") return new Vector3(1.2f, 0.8f, 0.65f);
+            if (stem == "cunadebebe" || stem == "cd1da979c0aa41a2e056ddf80ea043ad") return new Vector3(1.3f, 1.0f, 0.75f);
+            if (stem == "mecedora") return new Vector3(0.8f, 1.0f, 0.8f);
+            if (stem == "maniqui") return new Vector3(0.5f, 1.7f, 0.5f);
+            if (stem == "caldera") return new Vector3(0.9f, 1.4f, 0.8f);
+            if (stem == "generador") return new Vector3(1.0f, 1.1f, 0.7f);
+            if (stem == "escaleras") return new Vector3(0.55f, 2.0f, 0.15f);
+            if (stem == "cajadeherramientas" || stem == "cajadecables" || stem == "maletindemetal") return new Vector3(0.55f, 0.35f, 0.4f);
+            if (stem == "cajasdealmacen") return Vector3.one * MansionDecorationConstants.StorageBoxSize;
+            if (stem == "lata") return Vector3.one * 0.15f;
+            if (stem == "maceta") return new Vector3(0.35f, 0.55f, 0.35f);
+            if (stem == "caballitodemadera") return new Vector3(0.7f, 0.8f, 0.3f);
+            if (stem == "radio" || stem == "cajademusica") return new Vector3(0.25f, 0.2f, 0.18f);
             return Vector3.one * MansionDecorationConstants.SmallObjectSize;
         }
 
         private static void ScaleToTarget(Transform root, Vector3 currentSize, Vector3 targetSize)
         {
-            var scale = new Vector3(
-                currentSize.x > Mathf.Epsilon ? targetSize.x / currentSize.x : 1f,
-                currentSize.y > Mathf.Epsilon ? targetSize.y / currentSize.y : 1f,
-                currentSize.z > Mathf.Epsilon ? targetSize.z / currentSize.z : 1f);
-            root.localScale = Vector3.Scale(root.localScale, scale);
+            var ratioX = currentSize.x > Mathf.Epsilon ? targetSize.x / currentSize.x : float.PositiveInfinity;
+            var ratioY = currentSize.y > Mathf.Epsilon ? targetSize.y / currentSize.y : float.PositiveInfinity;
+            var ratioZ = currentSize.z > Mathf.Epsilon ? targetSize.z / currentSize.z : float.PositiveInfinity;
+            var uniformScale = Mathf.Min(ratioX, Mathf.Min(ratioY, ratioZ));
+            if (float.IsInfinity(uniformScale) || uniformScale <= 0f) return;
+            root.localScale *= uniformScale;
         }
 
         private static bool TryGetRendererBounds(GameObject instance, out Bounds bounds)
@@ -677,42 +1122,120 @@ namespace UltimaCinta.Editor
             bounds.min.x - room.xMin >= clearance && room.xMax - bounds.max.x >= clearance &&
             bounds.min.z - room.yMin >= clearance && room.yMax - bounds.max.z >= clearance;
 
+        private static string FindOverlap(Bounds bounds, List<PlacedObject> occupied)
+        {
+            foreach (var other in occupied)
+                if (bounds.Intersects(other.Bounds)) return other.Name;
+            return null;
+        }
+
+        private static bool FitsSurface(Bounds bounds, SupportSurface surface) =>
+            bounds.min.x >= surface.Bounds.min.x && bounds.max.x <= surface.Bounds.max.x &&
+            bounds.min.z >= surface.Bounds.min.z && bounds.max.z <= surface.Bounds.max.z &&
+            bounds.min.y >= surface.Bounds.max.y - MansionDecorationConstants.SurfaceItemOffset;
+
+        private static string FindSurfaceOverlap(Bounds bounds, List<PlacedObject> occupied, string supportId)
+        {
+            foreach (var other in occupied)
+                if (other.SupportId == supportId && bounds.Intersects(other.Bounds)) return other.Name;
+            return null;
+        }
+
+        private static string ViolatesDoorOrStairClearance(Bounds bounds, MansionLayoutSpace space,
+            MansionPlacementKind kind, List<MansionLayoutSpace> allSpaces, List<MansionLayoutDoor> doors,
+            List<MansionLayoutStair> stairs)
+        {
+            var isWallObject = kind == MansionPlacementKind.Wall || kind == MansionPlacementKind.Window || kind == MansionPlacementKind.Switch;
+            foreach (var door in doors)
+            {
+                if (door.A != space.Id && door.B != space.Id) continue;
+                var alongMin = door.Axis == 'X' ? bounds.min.z : bounds.min.x;
+                var alongMax = door.Axis == 'X' ? bounds.max.z : bounds.max.x;
+                var overlapsDoorSpan = alongMax > door.Min && alongMin < door.Max;
+                var wallDepthMin = door.Axis == 'X' ? bounds.min.x : bounds.min.z;
+                var wallDepthMax = door.Axis == 'X' ? bounds.max.x : bounds.max.z;
+                var reachesDoorWall = door.Position >= wallDepthMin - MansionGeneratorConstants.SharedWallHalfThickness &&
+                                      door.Position <= wallDepthMax + MansionGeneratorConstants.SharedWallHalfThickness;
+                var floorY = MansionGenerator.FloorY(space.Level);
+                var overlapsOpeningHeight = bounds.max.y > floorY && bounds.min.y < floorY + MansionGeneratorConstants.DoorHeight;
+
+                if (isWallObject)
+                {
+                    if (overlapsDoorSpan && reachesDoorWall && overlapsOpeningHeight) return "bloquea puerta " + door.Id;
+                    if (bounds.min.y < floorY + MansionGeneratorConstants.DoorHeight &&
+                        DoorLeafIntersects(bounds, door, allSpaces, stairs, space.Level)) return "bloquea puerta " + door.Id;
+                    continue;
+                }
+
+                var direction = door.Axis == 'X'
+                    ? (space.Bounds.center.x >= door.Position ? 1f : -1f)
+                    : (space.Bounds.center.y >= door.Position ? 1f : -1f);
+                var strip = door.Axis == 'X'
+                    ? Rect.MinMaxRect(Mathf.Min(door.Position, door.Position + direction * MansionDecorationConstants.DoorClearance), door.Min,
+                        Mathf.Max(door.Position, door.Position + direction * MansionDecorationConstants.DoorClearance), door.Max)
+                    : Rect.MinMaxRect(door.Min, Mathf.Min(door.Position, door.Position + direction * MansionDecorationConstants.DoorClearance),
+                        door.Max, Mathf.Max(door.Position, door.Position + direction * MansionDecorationConstants.DoorClearance));
+                if (IntersectsXZ(bounds, strip)) return "bloquea puerta " + door.Id;
+                if (DoorSweepIntersects(bounds, door, allSpaces, stairs, space.Id)) return "bloquea puerta " + door.Id;
+            }
+            foreach (var stair in stairs)
+            {
+                if (stair.LandingA != space.Id && stair.LandingB != space.Id) continue;
+                if (isWallObject) continue;
+                if (IntersectsXZ(bounds, stair.Opening)) return "bloquea escalera " + stair.Id;
+                var arrival = stair.LandingA == space.Id ? stair.ArrivalA : stair.ArrivalB;
+                if (IntersectsXZ(bounds, Expand(arrival, MansionDecorationConstants.StairClearance))) return "bloquea escalera " + stair.Id;
+            }
+            return null;
+        }
+
+        private static bool DoorSweepIntersects(Bounds bounds, MansionLayoutDoor door, List<MansionLayoutSpace> spaces,
+            List<MansionLayoutStair> stairs, string roomId)
+        {
+            if (!MansionGenerator.TryResolveDoorSwing(door, spaces, stairs, out var hingeAtMax, out var swingSign, out var inward) ||
+                inward == null || inward.Id != roomId) return false;
+            var along = hingeAtMax ? door.Max : door.Min;
+            var hinge = door.Axis == 'X' ? new Vector3(door.Position, 0f, along) : new Vector3(along, 0f, door.Position);
+            var leaf = door.Axis == 'X'
+                ? new Vector3(0f, 0f, hingeAtMax ? -door.Width : door.Width)
+                : new Vector3(hingeAtMax ? -door.Width : door.Width, 0f, 0f);
+            var previous = hinge;
+            for (var angle = 5f; angle <= MansionGeneratorConstants.DoorOpenAngle; angle += 5f)
+            {
+                var next = hinge + Quaternion.Euler(0f, swingSign * angle, 0f) * leaf;
+                var segment = Rect.MinMaxRect(Mathf.Min(previous.x, next.x) - 0.03f, Mathf.Min(previous.z, next.z) - 0.03f,
+                    Mathf.Max(previous.x, next.x) + 0.03f, Mathf.Max(previous.z, next.z) + 0.03f);
+                if (IntersectsXZ(bounds, segment)) return true;
+                previous = next;
+            }
+            return false;
+        }
+
+        private static bool DoorLeafIntersects(Bounds bounds, MansionLayoutDoor door, List<MansionLayoutSpace> spaces,
+            List<MansionLayoutStair> stairs, string level)
+        {
+            if (!MansionGenerator.TryResolveDoorSwing(door, spaces, stairs, out var hingeAtMax, out var swingSign, out _)) return false;
+            var floorY = MansionGenerator.FloorY(level);
+            if (bounds.max.y <= floorY || bounds.min.y >= floorY + MansionGeneratorConstants.DoorHeight) return false;
+            var along = hingeAtMax ? door.Max : door.Min;
+            var hinge = door.Axis == 'X' ? new Vector3(door.Position, floorY, along) : new Vector3(along, floorY, door.Position);
+            var leaf = door.Axis == 'X'
+                ? new Vector3(0f, 0f, hingeAtMax ? -door.Width : door.Width)
+                : new Vector3(hingeAtMax ? -door.Width : door.Width, 0f, 0f);
+            var tip = hinge + Quaternion.Euler(0f, swingSign * MansionGeneratorConstants.DoorOpenAngle, 0f) * leaf;
+            var opened = Rect.MinMaxRect(Mathf.Min(hinge.x, tip.x) - 0.03f, Mathf.Min(hinge.z, tip.z) - 0.03f,
+                Mathf.Max(hinge.x, tip.x) + 0.03f, Mathf.Max(hinge.z, tip.z) + 0.03f);
+            return IntersectsXZ(bounds, opened);
+        }
+
+        private static float DistanceToInterval(float value, float min, float max) => value < min ? min - value : value > max ? value - max : 0f;
+
         private static bool IntersectsOccupied(Bounds bounds, List<Bounds> occupied)
         {
             foreach (var other in occupied)
                 if (bounds.Intersects(other)) return true;
             return false;
         }
-
-        private static bool ViolatesDoorOrStairClearance(Bounds bounds, MansionLayoutSpace space,
-            List<MansionLayoutSpace> allSpaces, List<MansionLayoutDoor> doors, List<MansionLayoutStair> stairs)
-        {
-            foreach (var door in doors)
-            {
-                if (door.A != space.Id && door.B != space.Id) continue;
-                var swing = MansionGenerator.DoorSwingBounds(door, allSpaces, MansionDecorationConstants.DoorArcClearance);
-                if (swing.HasValue && IntersectsXZ(bounds, swing.Value)) return true;
-                var alongMin = door.Axis == 'X' ? bounds.min.z : bounds.min.x;
-                var alongMax = door.Axis == 'X' ? bounds.max.z : bounds.max.x;
-                var normalMin = door.Axis == 'X' ? bounds.min.x : bounds.min.z;
-                var normalMax = door.Axis == 'X' ? bounds.max.x : bounds.max.z;
-                var doorDistance = door.Axis == 'X'
-                    ? DistanceToInterval(door.Position, normalMin, normalMax)
-                    : DistanceToInterval(door.Position, normalMin, normalMax);
-                var overlapsDoorSpan = alongMax >= door.Min && alongMin <= door.Max;
-                if (overlapsDoorSpan && doorDistance < MansionDecorationConstants.DoorClearance) return true;
-            }
-            foreach (var stair in stairs)
-            {
-                if (stair.LandingA != space.Id && stair.LandingB != space.Id) continue;
-                if (IntersectsXZ(bounds, stair.Opening)) return true;
-                var arrival = stair.LandingA == space.Id ? stair.ArrivalA : stair.ArrivalB;
-                if (IntersectsXZ(bounds, Expand(arrival, MansionDecorationConstants.StairClearance))) return true;
-            }
-            return false;
-        }
-
-        private static float DistanceToInterval(float value, float min, float max) => value < min ? min - value : value > max ? value - max : 0f;
 
         private static bool IntersectsXZ(Bounds bounds, Rect rect) => bounds.max.x > rect.xMin && bounds.min.x < rect.xMax &&
             bounds.max.z > rect.yMin && bounds.min.z < rect.yMax;
@@ -742,70 +1265,162 @@ namespace UltimaCinta.Editor
             box.isTrigger = !pickup && Mathf.Max(worldBounds.size.x, Mathf.Max(worldBounds.size.y, worldBounds.size.z)) <= MansionDecorationConstants.SmallObjectSize * 2f;
         }
 
-        private static int CreateRoomLight(MansionLayoutSpace space, RoomMetadata metadata, Transform container)
-        {
-            if (metadata == null || metadata.Light == null || metadata.Light.Equals("apagada", StringComparison.OrdinalIgnoreCase)) return 0;
-            var root = new GameObject(metadata.Light.Equals("parpadeante", StringComparison.OrdinalIgnoreCase) ? "Luz_Parpadeante" : "Luz_Calida").transform;
-            root.SetParent(container, false);
-            root.localPosition = RoomCenter(space, MansionDecorationConstants.CeilingLightHeight);
-            var light = root.gameObject.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.range = MansionDecorationConstants.LightRange;
-            light.intensity = MansionDecorationConstants.WarmLightIntensity;
-            light.colorTemperature = MansionDecorationConstants.KelvinWarm;
-            light.useColorTemperature = true;
-            if (metadata.Light.Equals("parpadeante", StringComparison.OrdinalIgnoreCase)) root.gameObject.AddComponent<LightFlicker>();
-            return 1;
-        }
-
-        private static void ReplaceVan(Scene scene, List<string> models, ref int placed, ref int placeholders)
+        private static void ReplaceVan(Scene scene, Dictionary<string, string> models,
+            ref int placed, ref int omitted, List<string> omittedDetails)
         {
             var exterior = FindGameObjectInScene(scene, "Exterior_Porche");
-            if (exterior == null) return;
-            var existingVan = FindChild(exterior.transform, "Camioneta");
+            if (exterior == null)
+            {
+                OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
+                omitted++;
+                return;
+            }
+            var existingVan = FindChild(exterior.transform, "camioneta") ?? FindChild(exterior.transform, "Camioneta");
             var oldPlaceholder = FindChild(exterior.transform, "Camioneta_Placeholder");
-            if (existingVan == null && oldPlaceholder == null) return;
-            var position = existingVan != null ? existingVan.transform.position : oldPlaceholder.transform.position;
+            if (!models.TryGetValue("camioneta", out var vanPath))
+            {
+                OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
+                omitted++;
+                return;
+            }
+            if (existingVan == null && oldPlaceholder == null)
+            {
+                OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
+                omitted++;
+                return;
+            }
+
+            var position = oldPlaceholder != null ? oldPlaceholder.transform.position : existingVan.transform.position;
+            if (existingVan != null && TryGetRendererBounds(existingVan, out var existingBounds)) position = existingBounds.center;
             var oldDecoration = exterior.transform.Find("Decoracion");
             if (oldDecoration != null) UnityEngine.Object.DestroyImmediate(oldDecoration.gameObject);
             if (oldPlaceholder != null) UnityEngine.Object.DestroyImmediate(oldPlaceholder);
-            var asset = FindModel(models, "camioneta");
             var container = exterior.transform.Find("Decoracion");
             if (container == null) { container = new GameObject("Decoracion").transform; container.SetParent(exterior.transform, false); }
-            if (asset != null)
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(vanPath);
+            if (asset == null)
             {
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(asset);
-                var van = PrefabUtility.InstantiatePrefab(prefab, scene) as GameObject;
-                if (van == null) van = UnityEngine.Object.Instantiate(prefab);
-                van.name = "Camioneta";
-                van.transform.SetParent(container, false);
-                var vanPlacement = new Placement { Name = "Camioneta", Asset = asset };
-                if (TryGetRendererBounds(van, out var vanBounds))
-                {
-                    ScaleToTarget(van.transform, vanBounds.size, TargetSize(vanPlacement));
-                    if (TryGetRendererBounds(van, out vanBounds))
-                    {
-                        SetBoundsCenter(van.transform, vanBounds, new Vector3(position.x,
-                            UltimaCinta.Editor.MansionGeneratorConstants.ExteriorGroundY + vanBounds.extents.y, position.z));
-                        TryGetRendererBounds(van, out vanBounds);
-                        RemoveChildColliders(van.transform);
-                        AddBoundsCollider(van, vanBounds, vanPlacement, false);
-                        placed++;
-                    }
-                }
-                else Debug.LogWarning("MansionDecorator: se omite la camioneta; el FBX no tiene Renderers.");
+                OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
+                omitted++;
+                return;
             }
-            else
+            var van = PrefabUtility.InstantiatePrefab(asset, scene) as GameObject;
+            if (van == null) van = UnityEngine.Object.Instantiate(asset);
+            van.name = "camioneta";
+            van.transform.SetParent(container, false);
+            var vanPlacement = new Placement { Name = "camioneta", Asset = vanPath, Kind = MansionPlacementKind.Furniture };
+            if (!TryGetRendererBounds(van, out var vanBounds))
             {
-                var van = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                van.name = "PLACEHOLDER_Camioneta";
-                van.transform.SetParent(container, false);
-                van.transform.position = position;
-                van.transform.localScale = new Vector3(6f, 2.7f, 6f);
-                placeholders++;
-                Debug.LogWarning("MansionDecorator: falta camioneta.fbx; se conservó un cubo placeholder.");
+                OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
+                UnityEngine.Object.DestroyImmediate(van);
+                omitted++;
+                return;
+            }
+            ScaleToTarget(van.transform, vanBounds.size, TargetSize(vanPlacement));
+            if (!TryGetRendererBounds(van, out vanBounds))
+            {
+                UnityEngine.Object.DestroyImmediate(van);
+                omitted++;
+                return;
+            }
+            SetBoundsCenter(van.transform, vanBounds, new Vector3(position.x,
+                MansionGeneratorConstants.ExteriorGroundY + vanBounds.extents.y, position.z));
+            TryGetRendererBounds(van, out vanBounds);
+            RemoveChildColliders(van.transform);
+            placed++;
+            PlaceVanEquipment(container, vanBounds, scene, models, ref placed, ref omitted, omittedDetails);
+        }
+
+        private static void PlaceVanEquipment(Transform decorationRoot, Bounds vehicleBounds, Scene scene,
+            Dictionary<string, string> models, ref int placed, ref int omitted, List<string> omittedDetails)
+        {
+            var gearRoot = new GameObject("Camioneta_Equipo").transform;
+            gearRoot.SetParent(decorationRoot, false);
+            var equipment = new List<(string Stem, int Count, bool Pickup)>
+            {
+                ("linterna", 1, true), ("medidoremf", 1, true), ("termometro", 1, true), ("cinta", 1, true),
+                ("bateria", 2, true), ("diario", 1, true), ("librodeescritura", 1, true), ("velablanca", 2, true),
+                ("ajo", 1, true), ("amuleto", 1, true), ("aguabendita", 1, true), ("estaca", 1, true),
+                ("incienso", 1, true), ("botelladeagua", 1, true), ("camcorder", 1, false)
+            };
+            var slot = 0;
+            var occupied = new List<PlacedObject>();
+            foreach (var item in equipment)
+            {
+                if (!models.TryGetValue(item.Stem, out var path))
+                {
+                    OmitObject("Exterior", item.Stem, "sin candidatos", omittedDetails);
+                    omitted += item.Count;
+                    continue;
+                }
+                var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (asset == null)
+                {
+                    OmitObject("Exterior", item.Stem, "sin candidatos", omittedDetails);
+                    omitted += item.Count;
+                    continue;
+                }
+                for (var copy = 0; copy < item.Count; copy++)
+                {
+                    var instance = PrefabUtility.InstantiatePrefab(asset, scene) as GameObject;
+                    if (instance == null) instance = UnityEngine.Object.Instantiate(asset);
+                    var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(path));
+                    instance.name = stem;
+                    instance.transform.SetParent(gearRoot, false);
+                    var placement = new Placement { Asset = path, Name = stem, Kind = MansionPlacementKind.Surface };
+                    if (!TryGetRendererBounds(instance, out var sourceBounds))
+                    {
+                        OmitObject("Exterior", stem, "sin candidatos", omittedDetails);
+                        UnityEngine.Object.DestroyImmediate(instance);
+                        omitted++;
+                        continue;
+                    }
+                    ScaleToTarget(instance.transform, sourceBounds.size, TargetSize(placement));
+                    var column = slot % 4;
+                    var row = slot / 4;
+                    instance.transform.localRotation = Quaternion.identity;
+                    if (!TryGetRendererBounds(instance, out var bounds))
+                    {
+                        OmitObject("Exterior", stem, "sin candidatos", omittedDetails);
+                        UnityEngine.Object.DestroyImmediate(instance);
+                        omitted++;
+                        continue;
+                    }
+                    var target = new Vector3(vehicleBounds.max.x - 0.45f - column * MansionDecorationConstants.VanGearSpacing,
+                        vehicleBounds.min.y + MansionDecorationConstants.VanGearHeight + bounds.extents.y,
+                        vehicleBounds.center.z - 0.45f + row * MansionDecorationConstants.VanGearSpacing);
+                    SetBoundsCenter(instance.transform, bounds, target);
+                    if (!TryGetRendererBounds(instance, out bounds) || !ContainsBoundsXZ(vehicleBounds, bounds))
+                    {
+                        OmitObject("Exterior", stem, "fuera del cuarto", omittedDetails);
+                        UnityEngine.Object.DestroyImmediate(instance);
+                        omitted++;
+                        continue;
+                    }
+                    var overlap = FindOverlap(bounds, occupied);
+                    if (overlap != null)
+                    {
+                        OmitObject("Exterior", stem, "solapa con " + overlap, omittedDetails);
+                        UnityEngine.Object.DestroyImmediate(instance);
+                        omitted++;
+                        continue;
+                    }
+                    RemoveChildColliders(instance.transform);
+                    if (item.Pickup)
+                    {
+                        var pickup = instance.AddComponent<PickupInteractable>();
+                        pickup.SetItem(LoadOrCreateInventoryItem(stem));
+                    }
+                    AddBoundsCollider(instance, bounds, placement, item.Pickup);
+                    occupied.Add(new PlacedObject { Name = stem, Bounds = bounds });
+                    placed++;
+                    slot++;
+                }
             }
         }
+
+        private static bool ContainsBoundsXZ(Bounds outer, Bounds inner) => inner.min.x >= outer.min.x && inner.max.x <= outer.max.x &&
+            inner.min.z >= outer.min.z && inner.max.z <= outer.max.z;
 
         private static GameObject FindGameObjectInScene(Scene scene, string name)
         {
@@ -841,19 +1456,20 @@ namespace UltimaCinta.Editor
             return null;
         }
 
-        private static InventoryItem LoadOrCreateKeyItem(string keyId)
+        private static InventoryItem LoadOrCreateInventoryItem(string itemId)
         {
             if (!AssetDatabase.IsValidFolder(KeyItemsFolder))
             {
                 if (!AssetDatabase.IsValidFolder("Assets/Generated")) AssetDatabase.CreateFolder("Assets", "Generated");
                 AssetDatabase.CreateFolder("Assets/Generated", "KeyItems");
             }
-            var path = KeyItemsFolder + "/" + keyId + ".asset";
+            var assetName = NormalizeModelName(itemId);
+            var path = KeyItemsFolder + "/" + assetName + ".asset";
             var item = AssetDatabase.LoadAssetAtPath<InventoryItem>(path);
             if (item != null) return item;
             item = ScriptableObject.CreateInstance<InventoryItem>();
             var serialized = new SerializedObject(item);
-            serialized.FindProperty("displayName").stringValue = keyId;
+            serialized.FindProperty("displayName").stringValue = itemId;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.CreateAsset(item, path);
             return item;
@@ -872,3 +1488,5 @@ namespace UltimaCinta.Editor
     }
 }
 #endif
+
+

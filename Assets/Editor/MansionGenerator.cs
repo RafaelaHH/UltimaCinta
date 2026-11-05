@@ -71,6 +71,14 @@ namespace UltimaCinta.Editor
         private const string MenuPath = "Tools/UltimaCinta/2. Generar mansión completa";
         private const string LitShaderName = "Universal Render Pipeline/Lit";
         private static readonly string[] LevelNames = { "Sótano", "Planta baja", "Primer piso", "Desván" };
+        private sealed class DoorSwingResolution
+        {
+            public bool Success;
+            public bool HingeAtMax;
+            public float SwingSign;
+            public string InwardSpaceId;
+        }
+        private static readonly Dictionary<string, DoorSwingResolution> DoorSwingCache = new Dictionary<string, DoorSwingResolution>(StringComparer.Ordinal);
 
         private sealed class ExteriorRect
         {
@@ -106,6 +114,7 @@ namespace UltimaCinta.Editor
         [MenuItem(MenuPath)]
         public static void GenerateGroundFloorAndExterior()
         {
+            DoorSwingCache.Clear();
             var projectRoot = Directory.GetParent(Application.dataPath);
             var planPath = Path.Combine(projectRoot.FullName, MansionGeneratorConstants.PlanPath);
             if (!File.Exists(planPath))
@@ -177,7 +186,6 @@ namespace UltimaCinta.Editor
                 else
                 {
                     unresolvedDoorCount++;
-                    Debug.LogWarning($"MansionGenerator: no se pudo resolver el sentido de apertura de {door.Id}.");
                     BuildDoor(door, owner, materials, FloorY(FindSpace(spaces, door.A).Level), false, 1f, false);
                 }
                 doorCount++;
@@ -556,12 +564,35 @@ namespace UltimaCinta.Editor
         internal static bool TryResolveDoorSwing(MansionLayoutDoor door, List<MansionLayoutSpace> spaces,
             List<MansionLayoutStair> stairs, out bool hingeAtMax, out float swingSign, out MansionLayoutSpace inwardSpace)
         {
+            if (!DoorSwingCache.TryGetValue(door.Id, out var cached))
+            {
+                cached = new DoorSwingResolution { SwingSign = 1f };
+                cached.Success = TryResolveDoorSwingUncached(door, spaces, stairs, out cached.HingeAtMax,
+                    out cached.SwingSign, out var resolvedSpace);
+                cached.InwardSpaceId = resolvedSpace != null ? resolvedSpace.Id : null;
+                DoorSwingCache[door.Id] = cached;
+            }
+            hingeAtMax = cached.HingeAtMax;
+            swingSign = cached.SwingSign;
+            inwardSpace = cached.InwardSpaceId == null ? null : FindSpace(spaces, cached.InwardSpaceId);
+            return cached.Success;
+        }
+
+        internal static void ResetDoorSwingCache() => DoorSwingCache.Clear();
+
+        private static bool TryResolveDoorSwingUncached(MansionLayoutDoor door, List<MansionLayoutSpace> spaces,
+            List<MansionLayoutStair> stairs, out bool hingeAtMax, out float swingSign, out MansionLayoutSpace inwardSpace)
+        {
             hingeAtMax = false;
             swingSign = 1f;
             inwardSpace = null;
             var roomA = FindSpace(spaces, door.A);
             var roomB = door.B == "EXTERIOR" ? null : FindSpace(spaces, door.B);
-            if (roomA == null || (door.B != "EXTERIOR" && roomB == null)) return false;
+            if (roomA == null || (door.B != "EXTERIOR" && roomB == null))
+            {
+                Debug.LogWarning($"MansionGenerator: no se pudo resolver el barrido de la puerta {door.Id}; falta un recinto conectado.");
+                return false;
+            }
             if (roomB == null) inwardSpace = roomA;
             else
             {
@@ -572,10 +603,7 @@ namespace UltimaCinta.Editor
                 else if (roomAIsRoom) inwardSpace = roomA;
                 else if (roomBIsRoom) inwardSpace = roomB;
                 else
-                {
-                    Debug.LogWarning($"MansionGenerator: no hay una habitación para resolver el sentido de {door.Id}; se conserva la apertura hacia el lado A.");
-                    return false;
-                }
+                    inwardSpace = roomA.Bounds.width * roomA.Bounds.height <= roomB.Bounds.width * roomB.Bounds.height ? roomA : roomB;
             }
             var inward = inwardSpace;
 
@@ -634,7 +662,6 @@ namespace UltimaCinta.Editor
             {
                 hingeAtMax = bestInwardHingeAtMax;
                 swingSign = bestInwardSign;
-                Debug.LogWarning($"MansionGenerator: el barrido de {door.Id} no cabe en la habitación; la hoja se mantiene orientada hacia adentro.");
                 return true;
             }
 
@@ -893,7 +920,6 @@ namespace UltimaCinta.Editor
                     BuildDoor(door, parent, materials, FloorY(stair.LevelB), hingeAtMax, swingSign);
                 else
                 {
-                    Debug.LogWarning($"MansionGenerator: no se pudo resolver el sentido de apertura de {door.Id}.");
                     BuildDoor(door, parent, materials, FloorY(stair.LevelB), false, 1f, false);
                 }
                 doorCount++;
