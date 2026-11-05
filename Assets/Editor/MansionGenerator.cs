@@ -64,6 +64,10 @@ namespace UltimaCinta.Editor
         public const float DirectionalPitch = 35f;
         public const float DirectionalYaw = -30f;
         public const float DoorOpenAngle = 90f;
+        public const float RoomLightHeight = 2.35f;
+        public const float RoomLightRange = 4.5f;
+        public const float RoomLightIntensity = 0.45f;
+        public const float PointOfInterestHeight = 0.05f;
     }
 
     public static class MansionGenerator
@@ -198,7 +202,8 @@ namespace UltimaCinta.Editor
             BuildBasementExit(doors, spaces, roots, materials, ref stepCount);
             BuildStairs(stairs, spaces, roots, materials);
             BuildStairGates(gates, stairs, spaces, roots, materials, ref doorCount);
-            AddPlayerAndLighting(scene, roots, levelRoots, projectRoot.FullName);
+            BuildPointOfInterestMarkers(spaces, roots);
+            AddPlayerAndLighting(scene, roots, levelRoots, projectRoot.FullName, spaces);
 
             var target = MansionGeneratorConstants.ScenePath;
             Directory.CreateDirectory(Path.Combine(projectRoot.FullName, Path.GetDirectoryName(target)));
@@ -980,13 +985,28 @@ namespace UltimaCinta.Editor
         }
 
         private static void AddPlayerAndLighting(Scene scene, Dictionary<string, Transform> roots,
-            Dictionary<string, Transform> levelRoots, string projectRoot)
+            Dictionary<string, Transform> levelRoots, string projectRoot, List<MansionLayoutSpace> spaces)
         {
             var lightObject = new GameObject("Directional Light");
             var directional = lightObject.AddComponent<Light>();
             directional.type = LightType.Directional;
             directional.intensity = MansionGeneratorConstants.DimDirectionalIntensity;
             lightObject.transform.rotation = Quaternion.Euler(MansionGeneratorConstants.DirectionalPitch, MansionGeneratorConstants.DirectionalYaw, 0f);
+
+            foreach (var space in spaces)
+            {
+                if (!roots.TryGetValue(space.Id, out var roomRoot)) continue;
+                var roomLightObject = new GameObject("LuzHabitacion");
+                roomLightObject.transform.SetParent(roomRoot, false);
+                roomLightObject.transform.position = new Vector3(space.Bounds.center.x,
+                    FloorY(space.Level) + MansionGeneratorConstants.RoomLightHeight, space.Bounds.center.y);
+                var roomLight = roomLightObject.AddComponent<Light>();
+                roomLight.type = LightType.Point;
+                roomLight.range = MansionGeneratorConstants.RoomLightRange;
+                roomLight.intensity = MansionGeneratorConstants.RoomLightIntensity;
+                roomLight.color = new Color(1f, 0.82f, 0.64f);
+                roomLightObject.AddComponent<UltimaCinta.Lighting.LightFlicker>();
+            }
 
             var prefabPath = string.Empty;
             foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Prefabs" }))
@@ -1027,6 +1047,27 @@ namespace UltimaCinta.Editor
                 mainCamera = cameraObject.AddComponent<Camera>();
             }
             mainCamera.tag = "MainCamera";
+        }
+
+        private static void BuildPointOfInterestMarkers(List<MansionLayoutSpace> spaces, Dictionary<string, Transform> roots)
+        {
+            foreach (var space in spaces)
+            {
+                if (!roots.TryGetValue(space.Id, out var roomRoot)) continue;
+                var position = new Vector3(space.Bounds.center.x,
+                    FloorY(space.Level) + MansionGeneratorConstants.PointOfInterestHeight, space.Bounds.center.y);
+                CreatePointOfInterest("POI_SalaFavorita_Candidata_" + space.Id, position, roomRoot);
+                CreatePointOfInterest("POI_ObjetoRitual_" + space.Id, position, roomRoot);
+                CreatePointOfInterest("POI_Evidencia_" + space.Id, position, roomRoot);
+                if (space.Id == "B-RIT") CreatePointOfInterest("POI_Ritual_Centro", position, roomRoot);
+            }
+        }
+
+        private static void CreatePointOfInterest(string markerName, Vector3 position, Transform parent)
+        {
+            var marker = new GameObject(markerName).transform;
+            marker.SetParent(parent, false);
+            marker.position = position;
         }
 
         private static GameObject CreateBox(string name, Vector3 position, Vector3 size, Transform parent, Material material)

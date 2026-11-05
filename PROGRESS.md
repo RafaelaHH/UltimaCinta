@@ -37,7 +37,7 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 2 — Mansión (días 6–12)
 
-> Nota: se implementaron el generador de la mansión y el decorador de modelos, incluida la resolución de puertas y la colocación de objetos/superficies. Pendiente: compilar y volver a ejecutar los menús en el Editor; la última ejecución reportó 23 objetos omitidos y una llave sin colocar. Las tareas de esta fase siguen sin marcarse hasta verificar los resultados.
+> Nota: el código prepara la mansión, llaves en superficies, nueve escondites interactuables, luces de habitación con interruptores, marcadores POI y un menú para hornear el NavMesh. No se abrió Unity ni se ejecutaron los menús; falta compilar y comprobar la escena. La última ejecución reportó 23 objetos omitidos y una llave sin colocar, así que estas tareas siguen sin marcarse hasta validar la nueva ejecución en el Editor.
 
 - [ ] Construir la mansión por bloques (modular) con paredes y pisos hechos con formas básicas de Unity (ProBuilder) y todos los objetos generados con Hunyuan3D: sótano, planta baja, primer piso, exterior con la camioneta.
 - [ ] Iluminación baja, luces que se pueden encender/apagar, generador en el sótano.

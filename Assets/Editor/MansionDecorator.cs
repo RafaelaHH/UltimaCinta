@@ -45,9 +45,10 @@ namespace UltimaCinta.Editor
         public const float BookshelfWidth = 1.2f;
         public const float BookshelfHeight = 2.2f;
         public const float BookshelfDepth = 0.35f;
-        public const float TelevisionWidth = 0.9f;
-        public const float TelevisionHeight = 0.55f;
-        public const float TelevisionDepth = 0.12f;
+        public const float TelevisionWidth = 1.0f;
+        public const float TelevisionHeight = 0.75f;
+        public const float TelevisionDepth = 0.3f;
+        public const float TelevisionBaseHeight = 0.9f;
         public const float CounterHeight = 0.9f;
         public const float KitchenWidth = 1.2f;
         public const float KitchenDepth = 0.65f;
@@ -63,7 +64,8 @@ namespace UltimaCinta.Editor
         public const float FridgeWidth = 0.7f;
         public const float FridgeHeight = 1.8f;
         public const float SmallObjectSize = 0.25f;
-        public const float KeySize = 0.15f;
+        public const float KeySize = 0.22f;
+        public const float ObjectScaleBoost = 1.3f;
         public const float WallOffset = 0.05f;
         public const float DoorArcClearance = 0.9f;
         public const float MinimumHallWidth = 0.9f;
@@ -356,6 +358,7 @@ namespace UltimaCinta.Editor
         private static void PopulateRoomModels(string roomId, List<Placement> placements, Dictionary<string, string> models,
             HashSet<string> usedModels)
         {
+            AddModel(placements, models, usedModels, "interruptor", MansionPlacementKind.Switch);
             if (roomId == "G-COM")
             {
                 AddModel(placements, models, usedModels, "Mesa de comedor con sillas", MansionPlacementKind.Center);
@@ -456,7 +459,6 @@ namespace UltimaCinta.Editor
                 if (roomId == "G-REC") AddModel(placements, models, usedModels, "Espejo de recibidor", MansionPlacementKind.Wall);
                 if (roomId != "U-COR-E") AddModel(placements, models, usedModels, "maceta", MansionPlacementKind.Corner);
                 if (roomId == "G-SER" || roomId == "U-S1-HALL") AddModel(placements, models, usedModels, "Maniquí", MansionPlacementKind.Corner);
-                if (roomId == "G-SER") AddModel(placements, models, usedModels, "interruptor", MansionPlacementKind.Switch);
                 return;
             }
             if (roomId == "U-COS" || roomId == "U-GAL-E" || roomId == "G-AMP")
@@ -573,6 +575,7 @@ namespace UltimaCinta.Editor
         private static string HideoutModel(string type, int index)
         {
             var normalized = type.ToLowerInvariant();
+            if (normalized.Contains("armario") && normalized.Contains("bajo cama")) return index == 1 ? "cama" : "armario";
             if (normalized.Contains("bajo cama")) return "cama";
             if (normalized.Contains("cama") && index == 1) return "cama";
             if (normalized.Contains("estanter")) return "Estantería con libros";
@@ -679,6 +682,7 @@ namespace UltimaCinta.Editor
                     if (existingBed != null)
                     {
                         existingBed.name = placement.Name;
+                        ConfigureHideout(existingBed.gameObject, true);
                         hideoutCount++;
                         continue;
                     }
@@ -705,79 +709,88 @@ namespace UltimaCinta.Editor
                     omitted++;
                     continue;
                 }
-                ScaleToTarget(instance.transform, sourceBounds.size, targetSize);
-                var scaledScale = instance.transform.localScale;
-
-                var candidates = BuildPlacementCandidates(space, placement, instance, allSpaces, surfaces, doors);
+                var prefabScale = instance.transform.localScale;
                 Bounds finalBounds = default;
                 var fit = false;
                 var relaxedDining = false;
-                string failureReason = candidates.Count == 0 ? "sin candidatos" : "fuera del cuarto";
+                string failureReason = "sin candidatos";
                 SupportSurface selectedSurface = null;
-                foreach (var candidate in candidates)
+                var retryFactors = isKey || NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "camioneta"
+                    ? new[] { 1f } : new[] { 1f, 1.15f / MansionDecorationConstants.ObjectScaleBoost, 1f / MansionDecorationConstants.ObjectScaleBoost };
+                var usedFactor = 1f;
+                for (var attempt = 0; attempt < retryFactors.Length && !fit; attempt++)
                 {
-                    instance.transform.localScale = scaledScale;
-                    instance.transform.localRotation = Quaternion.Euler(0f, candidate.yaw, 0f);
-                    if (!TryGetRendererBounds(instance, out var initialBounds)) continue;
-                    var bounds = initialBounds;
-                    var desiredCenter = candidate.center;
-                    if (placement.Kind == MansionPlacementKind.RitualFloor)
-                        desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
-                    else if (!isHanging && !isKey && !candidate.onSurface)
-                        desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
-                    if (candidate.onSurface)
-                        desiredCenter.y = candidate.surface.Bounds.max.y + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
-                    SetBoundsCenter(instance.transform, bounds, desiredCenter);
-                    if (!TryGetRendererBounds(instance, out bounds) || !FitsRoom(bounds, space.Bounds))
+                    usedFactor = retryFactors[attempt];
+                    instance.transform.localScale = prefabScale;
+                    ScaleToTarget(instance.transform, sourceBounds.size, targetSize * usedFactor, placement);
+                    var scaledScale = instance.transform.localScale;
+                    var candidates = BuildPlacementCandidates(space, placement, instance, allSpaces, surfaces, doors);
+                    if (candidates.Count == 0) failureReason = "sin candidatos";
+                    foreach (var candidate in candidates)
                     {
-                        failureReason = "fuera del cuarto";
-                        continue;
-                    }
-
-                    var diningTable = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "mesadecomedorconsillas";
-                    if (diningTable && !HasRoomClearance(bounds, space.Bounds, MansionDecorationConstants.DiningClearance))
-                    {
-                        if (!HasRoomClearance(bounds, space.Bounds, 0.6f))
+                        instance.transform.localScale = scaledScale;
+                        instance.transform.localRotation = Quaternion.Euler(0f, candidate.yaw, 0f);
+                        if (!TryGetRendererBounds(instance, out var initialBounds)) continue;
+                        var bounds = initialBounds;
+                        var desiredCenter = candidate.center;
+                        if (placement.Kind == MansionPlacementKind.RitualFloor)
+                            desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                        else if (!isHanging && !isKey && !candidate.onSurface)
+                            desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                        if (candidate.onSurface)
+                            desiredCenter.y = candidate.surface.Bounds.max.y + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                        SetBoundsCenter(instance.transform, bounds, desiredCenter);
+                        if (!TryGetRendererBounds(instance, out bounds) || !FitsRoom(bounds, space.Bounds))
                         {
                             failureReason = "fuera del cuarto";
                             continue;
                         }
-                        relaxedDining = true;
-                    }
 
-                    if (candidate.onSurface)
-                    {
-                        if (!FitsSurface(bounds, candidate.surface))
+                        var diningTable = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "mesadecomedorconsillas";
+                        if (diningTable && !HasRoomClearance(bounds, space.Bounds, MansionDecorationConstants.DiningClearance))
                         {
-                            failureReason = "fuera del cuarto";
-                            continue;
+                            if (!HasRoomClearance(bounds, space.Bounds, 0.6f))
+                            {
+                                failureReason = "fuera del cuarto";
+                                continue;
+                            }
+                            relaxedDining = true;
                         }
-                        var overlap = FindSurfaceOverlap(bounds, occupied, candidate.surface.Id);
-                        if (overlap != null)
+
+                        if (candidate.onSurface)
                         {
-                            failureReason = "solapa con " + overlap;
-                            continue;
+                            if (!FitsSurface(bounds, candidate.surface))
+                            {
+                                failureReason = "fuera del cuarto";
+                                continue;
+                            }
+                            var overlap = FindSurfaceOverlap(bounds, occupied, candidate.surface.Id);
+                            if (overlap != null)
+                            {
+                                failureReason = "solapa con " + overlap;
+                                continue;
+                            }
                         }
+                        else
+                        {
+                            var overlap = FindOverlap(bounds, occupied);
+                            if (overlap != null)
+                            {
+                                failureReason = "solapa con " + overlap;
+                                continue;
+                            }
+                            var obstruction = ViolatesDoorOrStairClearance(bounds, space, placement.Kind, allSpaces, doors, stairs);
+                            if (obstruction != null)
+                            {
+                                failureReason = obstruction;
+                                continue;
+                            }
+                        }
+                        finalBounds = bounds;
+                        selectedSurface = candidate.surface;
+                        fit = true;
+                        break;
                     }
-                    else
-                    {
-                        var overlap = FindOverlap(bounds, occupied);
-                        if (overlap != null)
-                        {
-                            failureReason = "solapa con " + overlap;
-                            continue;
-                        }
-                        var obstruction = ViolatesDoorOrStairClearance(bounds, space, placement.Kind, allSpaces, doors, stairs);
-                        if (obstruction != null)
-                        {
-                            failureReason = obstruction;
-                            continue;
-                        }
-                    }
-                    finalBounds = bounds;
-                    selectedSurface = candidate.surface;
-                    fit = true;
-                    break;
                 }
                 if (!fit)
                 {
@@ -796,6 +809,8 @@ namespace UltimaCinta.Editor
 
                 if (relaxedDining)
                     Debug.LogWarning($"MansionDecorator: Mesa de comedor con sillas en {space.Id} requiere 0.6 m libres; no alcanza 0.9 m.");
+                if (!isKey && usedFactor < 0.999f)
+                    Debug.LogWarning($"MansionDecorator: {placement.Name} en {space.Id} quedó con factor de escala {usedFactor * MansionDecorationConstants.ObjectScaleBoost:0.##}.");
 
                 RemoveChildColliders(instance.transform);
                 var pickup = instance.GetComponent<PickupInteractable>();
@@ -807,6 +822,10 @@ namespace UltimaCinta.Editor
                     keyLocations.Add(placement.Name + " en " + space.Id + " sobre " + (selectedSurface != null ? selectedSurface.Name : "superficie alternativa"));
                 }
                 AddBoundsCollider(instance, finalBounds, placement, pickup != null);
+                if (placement.Kind == MansionPlacementKind.Hideout)
+                    ConfigureHideout(instance, NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "cama");
+                if (placement.Kind == MansionPlacementKind.Switch)
+                    ConfigureRoomSwitch(instance, room);
                 occupied.Add(new PlacedObject { Name = placement.Name, Bounds = finalBounds, SupportId = selectedSurface != null ? selectedSurface.Id : null });
                 if (isFurniture || placement.Kind == MansionPlacementKind.Center)
                 {
@@ -822,6 +841,24 @@ namespace UltimaCinta.Editor
         {
             omittedDetails.Add(room + ":" + name + " (" + reason + ")");
             Debug.LogWarning($"MansionDecorator: omitido {room}:{name}; {reason}.");
+        }
+
+        private static void ConfigureHideout(GameObject instance, bool underBed)
+        {
+            var hideout = instance.GetComponent<UltimaCinta.Interaction.HideoutInteractable>() ??
+                          instance.AddComponent<UltimaCinta.Interaction.HideoutInteractable>();
+            hideout.SetUnderBed(underBed);
+        }
+
+        private static void ConfigureRoomSwitch(GameObject instance, GameObject room)
+        {
+            var roomLightTransform = room.transform.Find("LuzHabitacion");
+            var roomLight = roomLightTransform == null ? null : roomLightTransform.GetComponent<Light>();
+            var toggle = instance.GetComponent<SwitchInteractable>() ?? instance.AddComponent<SwitchInteractable>();
+            var serialized = new SerializedObject(toggle);
+            serialized.FindProperty("controlledLight").objectReferenceValue = roomLight;
+            serialized.FindProperty("controlledObject").objectReferenceValue = null;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private sealed class PlacementCandidate
@@ -1024,10 +1061,14 @@ namespace UltimaCinta.Editor
             var yaw = float.IsNaN(fixedYaw) ? Quaternion.LookRotation(inward).eulerAngles.y : fixedYaw;
             instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
             if (!TryGetRendererBounds(instance, out var bounds)) return;
+            var isTelevision = NormalizeModelName(instance.name) == "televisorviejo";
+            var verticalCenter = isTelevision
+                ? floorY + MansionDecorationConstants.TelevisionBaseHeight + bounds.extents.y
+                : floorY + height;
             var center = axis == 'X'
                 ? new Vector3(wallPosition + inward.x * (bounds.extents.x + (wallMounted ? MansionDecorationConstants.ObjectWallGap : MansionDecorationConstants.WallOffset)),
-                    floorY + height, along)
-                : new Vector3(along, floorY + height,
+                    verticalCenter, along)
+                : new Vector3(along, verticalCenter,
                     wallPosition + inward.z * (bounds.extents.z + (wallMounted ? MansionDecorationConstants.ObjectWallGap : MansionDecorationConstants.WallOffset)));
             result.Add(new PlacementCandidate { center = center, yaw = yaw });
         }
@@ -1050,6 +1091,14 @@ namespace UltimaCinta.Editor
         }
 
         private static Vector3 TargetSize(Placement placement)
+        {
+            var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset ?? placement.Name));
+            if (placement.Kind == MansionPlacementKind.Key) return Vector3.one * MansionDecorationConstants.KeySize;
+            if (stem == "camioneta") return TargetSizeRaw(placement);
+            return TargetSizeRaw(placement) * MansionDecorationConstants.ObjectScaleBoost;
+        }
+
+        private static Vector3 TargetSizeRaw(Placement placement)
         {
             var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset ?? placement.Name));
             if (placement.Kind == MansionPlacementKind.Key) return Vector3.one * MansionDecorationConstants.KeySize;
@@ -1086,12 +1135,23 @@ namespace UltimaCinta.Editor
             return Vector3.one * MansionDecorationConstants.SmallObjectSize;
         }
 
-        private static void ScaleToTarget(Transform root, Vector3 currentSize, Vector3 targetSize)
+        private static void ScaleToTarget(Transform root, Vector3 currentSize, Vector3 targetSize, Placement placement = null)
         {
-            var ratioX = currentSize.x > Mathf.Epsilon ? targetSize.x / currentSize.x : float.PositiveInfinity;
-            var ratioY = currentSize.y > Mathf.Epsilon ? targetSize.y / currentSize.y : float.PositiveInfinity;
-            var ratioZ = currentSize.z > Mathf.Epsilon ? targetSize.z / currentSize.z : float.PositiveInfinity;
-            var uniformScale = Mathf.Min(ratioX, Mathf.Min(ratioY, ratioZ));
+            var stem = placement == null ? NormalizeModelName(root.name) : NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset ?? placement.Name));
+            var dominantRatio = stem.Contains("cama") || stem == "sofa" || stem.Contains("mesa")
+                ? targetSize.x / Mathf.Max(currentSize.x, Mathf.Epsilon)
+                : stem == "armario" || stem.Contains("estanteria") || stem.Contains("maquina") || stem == "maniqui" || stem == "televisorviejo"
+                    ? targetSize.y / Mathf.Max(currentSize.y, Mathf.Epsilon)
+                    : targetSize.x >= targetSize.y && targetSize.x >= targetSize.z
+                        ? targetSize.x / Mathf.Max(currentSize.x, Mathf.Epsilon)
+                        : targetSize.y >= targetSize.z
+                            ? targetSize.y / Mathf.Max(currentSize.y, Mathf.Epsilon)
+                            : targetSize.z / Mathf.Max(currentSize.z, Mathf.Epsilon);
+            var uniformScale = dominantRatio;
+            var maxScaleX = targetSize.x * 1.25f / Mathf.Max(currentSize.x, Mathf.Epsilon);
+            var maxScaleY = targetSize.y * 1.25f / Mathf.Max(currentSize.y, Mathf.Epsilon);
+            var maxScaleZ = targetSize.z * 1.25f / Mathf.Max(currentSize.z, Mathf.Epsilon);
+            uniformScale = Mathf.Min(uniformScale, Mathf.Min(maxScaleX, Mathf.Min(maxScaleY, maxScaleZ)));
             if (float.IsInfinity(uniformScale) || uniformScale <= 0f) return;
             root.localScale *= uniformScale;
         }
@@ -1375,36 +1435,52 @@ namespace UltimaCinta.Editor
                         omitted++;
                         continue;
                     }
-                    ScaleToTarget(instance.transform, sourceBounds.size, TargetSize(placement));
                     var column = slot % 4;
                     var row = slot / 4;
-                    instance.transform.localRotation = Quaternion.identity;
-                    if (!TryGetRendererBounds(instance, out var bounds))
+                    var originalScale = instance.transform.localScale;
+                    var targetSize = TargetSize(placement);
+                    var placedGear = false;
+                    string gearFailure = "fuera del cuarto";
+                    var gearFactor = 1f;
+                    var gearFactors = new[] { 1f, 1.15f / MansionDecorationConstants.ObjectScaleBoost, 1f / MansionDecorationConstants.ObjectScaleBoost };
+                    Bounds bounds = default;
+                    for (var attempt = 0; attempt < gearFactors.Length && !placedGear; attempt++)
                     {
-                        OmitObject("Exterior", stem, "sin candidatos", omittedDetails);
+                        gearFactor = gearFactors[attempt];
+                        instance.transform.localScale = originalScale;
+                        ScaleToTarget(instance.transform, sourceBounds.size, targetSize * gearFactor, placement);
+                        instance.transform.localRotation = Quaternion.identity;
+                        if (!TryGetRendererBounds(instance, out bounds))
+                        {
+                            gearFailure = "sin candidatos";
+                            continue;
+                        }
+                        var target = new Vector3(vehicleBounds.max.x - 0.45f - column * MansionDecorationConstants.VanGearSpacing,
+                            vehicleBounds.min.y + MansionDecorationConstants.VanGearHeight + bounds.extents.y,
+                            vehicleBounds.center.z - 0.45f + row * MansionDecorationConstants.VanGearSpacing);
+                        SetBoundsCenter(instance.transform, bounds, target);
+                        if (!TryGetRendererBounds(instance, out bounds) || !ContainsBoundsXZ(vehicleBounds, bounds))
+                        {
+                            gearFailure = "fuera del cuarto";
+                            continue;
+                        }
+                        var overlap = FindOverlap(bounds, occupied);
+                        if (overlap != null)
+                        {
+                            gearFailure = "solapa con " + overlap;
+                            continue;
+                        }
+                        placedGear = true;
+                    }
+                    if (!placedGear)
+                    {
+                        OmitObject("Exterior", stem, gearFailure, omittedDetails);
                         UnityEngine.Object.DestroyImmediate(instance);
                         omitted++;
                         continue;
                     }
-                    var target = new Vector3(vehicleBounds.max.x - 0.45f - column * MansionDecorationConstants.VanGearSpacing,
-                        vehicleBounds.min.y + MansionDecorationConstants.VanGearHeight + bounds.extents.y,
-                        vehicleBounds.center.z - 0.45f + row * MansionDecorationConstants.VanGearSpacing);
-                    SetBoundsCenter(instance.transform, bounds, target);
-                    if (!TryGetRendererBounds(instance, out bounds) || !ContainsBoundsXZ(vehicleBounds, bounds))
-                    {
-                        OmitObject("Exterior", stem, "fuera del cuarto", omittedDetails);
-                        UnityEngine.Object.DestroyImmediate(instance);
-                        omitted++;
-                        continue;
-                    }
-                    var overlap = FindOverlap(bounds, occupied);
-                    if (overlap != null)
-                    {
-                        OmitObject("Exterior", stem, "solapa con " + overlap, omittedDetails);
-                        UnityEngine.Object.DestroyImmediate(instance);
-                        omitted++;
-                        continue;
-                    }
+                    if (gearFactor < 0.999f)
+                        Debug.LogWarning($"MansionDecorator: {stem} en Exterior quedó con factor de escala {gearFactor * MansionDecorationConstants.ObjectScaleBoost:0.##}.");
                     RemoveChildColliders(instance.transform);
                     if (item.Pickup)
                     {
