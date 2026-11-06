@@ -10,6 +10,7 @@ namespace UltimaCinta.Interaction
         [SerializeField] private GameObject controlledObject;
         [SerializeField] private GameObject controlledFixture;
         [SerializeField] private AudioClip failureClip;
+        [SerializeField] private MansionPowerController powerController;
 
         private readonly List<Material> emissionMaterials = new List<Material>();
         private readonly List<Color> originalEmissionColors = new List<Color>();
@@ -17,17 +18,18 @@ namespace UltimaCinta.Interaction
         private Coroutine flashRoutine;
         private bool _on = true;
         private bool yaFallo;
+        private bool hasPower = true;
 
         public string Prompt => "E — toggle switch";
+        public Light ControlledLight => controlledLight;
 
         private void Awake()
         {
             yaFallo = false;
             _on = true;
-            if (controlledLight != null) controlledLight.enabled = true;
-            if (controlledObject != null) controlledObject.SetActive(true);
             InitializeFixtureEmission();
-            SetEmissionEnabled(true);
+            if (powerController != null) powerController.RegisterSwitch(this);
+            else SetLightState(true);
         }
 
         public void SetControlledFixture(GameObject fixture)
@@ -38,6 +40,28 @@ namespace UltimaCinta.Interaction
         public void SetFailureClip(AudioClip clip)
         {
             failureClip = clip;
+        }
+
+        public void SetControlledLight(Light light)
+        {
+            controlledLight = light;
+        }
+
+        public void SetPowerController(MansionPowerController controller)
+        {
+            powerController = controller;
+        }
+
+        public void SetPowerAvailable(bool available)
+        {
+            hasPower = available;
+            if (available) SetLightState(_on);
+        }
+
+        public void EnsureRealtimeLight()
+        {
+            if (controlledLight != null && controlledLight.lightmapBakeType != LightmapBakeType.Realtime)
+                controlledLight.lightmapBakeType = LightmapBakeType.Realtime;
         }
 
         public bool Interact(GameObject interactor)
@@ -80,8 +104,7 @@ namespace UltimaCinta.Interaction
             for (var blink = 0; blink < blinkCount; blink++)
             {
                 var enabled = blink % 2 == 0;
-                if (controlledLight != null) controlledLight.enabled = enabled;
-                SetEmissionEnabled(enabled);
+                SetLightState(enabled);
                 yield return new WaitForSeconds(blinkDuration);
             }
 
@@ -99,9 +122,10 @@ namespace UltimaCinta.Interaction
 
         private void SetLightState(bool enabled)
         {
-            if (controlledLight != null) controlledLight.enabled = enabled;
-            if (controlledObject != null) controlledObject.SetActive(enabled);
-            SetEmissionEnabled(enabled);
+            var poweredState = enabled && hasPower;
+            if (controlledLight != null) controlledLight.enabled = poweredState;
+            if (controlledObject != null) controlledObject.SetActive(poweredState);
+            SetEmissionEnabled(poweredState);
         }
 
         private void LogLightingState(bool firstFailure)
@@ -117,7 +141,7 @@ namespace UltimaCinta.Interaction
                     Debug.Log($"Luz recinto {roomRoot.name}: {roomLight.name}, enabled={roomLight.enabled}, intensidad={roomLight.intensity}", roomLight);
             }
             Debug.Log($"Iluminación ambiente: RenderSettings.ambientIntensity={RenderSettings.ambientIntensity}", this);
-            foreach (var light in FindObjectsOfType<Light>(true))
+            foreach (var light in FindObjectsByType<Light>(FindObjectsInactive.Include))
                 if (light.type == LightType.Directional)
                     Debug.Log($"Luz direccional {light.name}: enabled={light.enabled}, intensidad={light.intensity}", light);
         }

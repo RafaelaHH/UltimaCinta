@@ -14,6 +14,8 @@ namespace UltimaCinta.Editor
         private const string MenuPath = "Tools/UltimaCinta/4. Hornear NavMesh de mansión";
         private const string ScenePath = "Assets/Scenes/Mansion_Generated.unity";
         private const string SurfaceName = "Mansion_NavMeshSurface";
+        private const string NavMeshFolder = "Assets/Generated/NavMeshData";
+        private const string NavMeshAssetPath = NavMeshFolder + "/Mansion_NavMeshData.asset";
         private const int WalkableLayer = 8;
 
         [MenuItem(MenuPath)]
@@ -36,10 +38,32 @@ namespace UltimaCinta.Editor
             var surface = root.GetComponent<NavMeshSurface>() ?? root.AddComponent<NavMeshSurface>();
             surface.agentTypeID = 0;
             surface.collectObjects = CollectObjects.All;
-            surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            surface.useGeometry = NavMeshCollectGeometry.RenderMeshes;
             surface.layerMask = 1 << WalkableLayer;
             surface.defaultArea = NavMesh.GetAreaFromName("Walkable");
             surface.BuildNavMesh();
+            if (surface.navMeshData == null)
+            {
+                Debug.LogError("MansionNavMeshBaker: BuildNavMesh no produjo NavMeshData.");
+                return;
+            }
+
+            if (!AssetDatabase.IsValidFolder("Assets/Generated")) AssetDatabase.CreateFolder("Assets", "Generated");
+            if (!AssetDatabase.IsValidFolder(NavMeshFolder)) AssetDatabase.CreateFolder("Assets/Generated", "NavMeshData");
+            if (AssetDatabase.LoadAssetAtPath<NavMeshData>(NavMeshAssetPath) != null && !AssetDatabase.DeleteAsset(NavMeshAssetPath))
+            {
+                Debug.LogError($"MansionNavMeshBaker: no se pudo reemplazar {NavMeshAssetPath}.");
+                return;
+            }
+            var bakedData = surface.navMeshData;
+            AssetDatabase.CreateAsset(bakedData, NavMeshAssetPath);
+            surface.navMeshData = AssetDatabase.LoadAssetAtPath<NavMeshData>(NavMeshAssetPath);
+            EditorUtility.SetDirty(surface);
+            if (surface.navMeshData == null)
+            {
+                Debug.LogError($"MansionNavMeshBaker: no se pudo asignar el asset {NavMeshAssetPath} a {SurfaceName}.");
+                return;
+            }
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
@@ -48,7 +72,7 @@ namespace UltimaCinta.Editor
                 return;
             }
             AssetDatabase.SaveAssets();
-            Debug.Log($"NavMesh de mansión horneado: agente predeterminado, {walkableCount} superficies caminables y escena guardada en {ScenePath}.");
+            Debug.Log($"NavMesh de mansión horneado: agente predeterminado, {walkableCount} superficies caminables, asset {NavMeshAssetPath} asignado a {SurfaceName} y escena guardada en {ScenePath}.");
         }
 
         private static int MarkWalkableGeometry(Scene scene)
@@ -58,8 +82,7 @@ namespace UltimaCinta.Editor
             foreach (var transform in root.GetComponentsInChildren<Transform>(true))
             {
                 if (!IsWalkableName(transform.name)) continue;
-                var collider = transform.GetComponent<Collider>();
-                if (collider == null) continue;
+                if (transform.GetComponent<Collider>() == null && transform.GetComponent<Renderer>() == null) continue;
                 transform.gameObject.layer = WalkableLayer;
                 count++;
             }
@@ -68,6 +91,7 @@ namespace UltimaCinta.Editor
 
         private static bool IsWalkableName(string name) =>
             name == "Floor" || name == "PorchFloor" || name == "ExteriorGround" ||
+            name.StartsWith("Huella_", System.StringComparison.Ordinal) ||
             name.StartsWith("Escalon_", System.StringComparison.Ordinal) ||
             name.StartsWith("Escalon_P-B7_", System.StringComparison.Ordinal) ||
             name == "Rampa_Colisionable" || name == "RampaColisionable_P-B7";

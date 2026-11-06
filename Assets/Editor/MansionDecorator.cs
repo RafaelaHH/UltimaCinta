@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using UltimaCinta.Data;
 using UltimaCinta.Interaction;
+using UltimaCinta.Lighting;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -70,6 +71,15 @@ namespace UltimaCinta.Editor
         public const float CeilingLampDiameter = 0.4f;
         public const float CeilingLampLightOffset = 0.2f;
         public const float SwitchFrameOffset = 0.15f;
+        public const float FuseMarkerSize = 0.14f;
+        public const float GeneratorFallbackWidth = 0.8f;
+        public const float GeneratorFallbackHeight = 1.0f;
+        public const float GeneratorFallbackDepth = 0.6f;
+        public const float ElectricalBoxWidth = 0.45f;
+        public const float ElectricalBoxHeight = 0.55f;
+        public const float ElectricalBoxDepth = 0.12f;
+        public const float ElectricalBoxWallGap = 0.02f;
+        public const float ElectricalBoxMountHeight = 1.5f;
         public const float WallOffset = 0.05f;
         public const float DoorArcClearance = 0.9f;
         public const float MinimumHallWidth = 0.9f;
@@ -274,11 +284,13 @@ namespace UltimaCinta.Editor
                 }
             }
 
+            var fuseSystemSummary = AddFuseSystem(scene, spaces, doors, ref placed);
             ReplaceVan(scene, modelsByName, ref placed, ref omitted, omittedDetails);
             var poiSummary = AnnotateAndSummarizePoi(scene);
+            MansionNightLighting.EnsureForScene(scene);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, MansionDecorationConstants.ScenePath);
-            Debug.Log($"Mansión decorada: objetos colocados {placed}; omitidos {omitted} [{ShortOmissionList(omittedDetails)}]; llaves [{string.Join("; ", keyLocations)}]; lámparas [{string.Join("; ", lampLocations)}]; escondites [{string.Join("; ", hideoutLocations)}]; POI [{poiSummary}].");
+            Debug.Log($"Mansión decorada: objetos colocados {placed}; omitidos {omitted} [{ShortOmissionList(omittedDetails)}]; llaves [{string.Join("; ", keyLocations)}]; lámparas [{string.Join("; ", lampLocations)}]; escondites [{string.Join("; ", hideoutLocations)}]; POI [{poiSummary}]; fusible [{fuseSystemSummary}].");
         }
 
         private static string ShortOmissionList(List<string> omissions)
@@ -819,6 +831,7 @@ namespace UltimaCinta.Editor
                 var isHanging = placement.Kind == MansionPlacementKind.Wall || placement.Kind == MansionPlacementKind.Window || placement.Kind == MansionPlacementKind.Switch;
                 var isFurniture = placement.Kind == MansionPlacementKind.Furniture || placement.Kind == MansionPlacementKind.Hideout;
                 var isKey = placement.Kind == MansionPlacementKind.Key;
+                var isBed = IsBedModel(placement.Asset);
                 var targetSize = TargetSize(placement);
                 if (!TryGetRendererBounds(instance, out var sourceBounds))
                 {
@@ -940,10 +953,10 @@ namespace UltimaCinta.Editor
                     pickup.SetItem(LoadOrCreateInventoryItem(keyId));
                     keyLocations.Add(placement.Name + " en " + space.Id + " sobre " + (selectedSurface != null ? selectedSurface.Name : "superficie alternativa"));
                 }
-                AddBoundsCollider(instance, finalBounds, placement, pickup != null);
-                if (placement.Kind == MansionPlacementKind.Hideout)
+                AddBoundsCollider(instance, finalBounds, placement, pickup != null, isBed);
+                if (placement.Kind == MansionPlacementKind.Hideout || isBed)
                 {
-                    var hideoutType = HideoutType(placement.Asset);
+                    var hideoutType = isBed ? "cama" : HideoutType(placement.Asset);
                     ConfigureHideout(instance, hideoutType == "cama", hideoutType, space.Bounds);
                     hideoutLocations.Add($"Escondite {placement.Name} en {space.Id}, tipo {hideoutType}");
                 }
@@ -955,7 +968,7 @@ namespace UltimaCinta.Editor
                     var surface = new SupportSurface { Id = placement.Name, Name = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)), Bounds = finalBounds };
                     surfaces.Add(surface);
                 }
-                if (placement.Name.StartsWith("Escondite_", StringComparison.Ordinal)) hideoutCount++;
+                if (placement.Kind == MansionPlacementKind.Hideout || isBed) hideoutCount++;
                 placed++;
             }
         }
@@ -972,6 +985,12 @@ namespace UltimaCinta.Editor
             if (stem.Contains("cama")) return "cama";
             if (stem.Contains("armario")) return "armario";
             return "otro";
+        }
+
+        private static bool IsBedModel(string assetPath)
+        {
+            var stem = NormalizeModelName(Path.GetFileNameWithoutExtension(assetPath ?? string.Empty));
+            return stem.StartsWith("cama", StringComparison.Ordinal) || stem.StartsWith("bed", StringComparison.Ordinal);
         }
 
         private static void ConfigureHideout(GameObject instance, bool underBed, string type, Rect roomBounds)
@@ -1489,8 +1508,12 @@ namespace UltimaCinta.Editor
             foreach (var collider in root.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(collider);
         }
 
-        private static void AddBoundsCollider(GameObject instance, Bounds worldBounds, Placement placement, bool pickup)
+        private static void AddBoundsCollider(GameObject instance, Bounds worldBounds, Placement placement, bool pickup, bool forceHideout = false)
         {
+            var hideoutCollider = placement.Kind == MansionPlacementKind.Hideout || forceHideout;
+            if (hideoutCollider)
+                worldBounds.Expand(Vector3.one * (MansionDecorationConstants.HideoutColliderMargin * 2f));
+
             var localMin = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
             var localMax = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
             for (var x = 0; x < 2; x++)
@@ -1504,16 +1527,13 @@ namespace UltimaCinta.Editor
                 localMax = Vector3.Max(localMax, local);
             }
             var box = instance.AddComponent<BoxCollider>();
-            if (placement.Kind == MansionPlacementKind.Hideout)
+            if (hideoutCollider)
             {
-                var margin = Vector3.one * MansionDecorationConstants.HideoutColliderMargin;
-                localMin -= margin;
-                localMax += margin;
                 instance.layer = LayerMask.NameToLayer("Default");
             }
             box.center = (localMin + localMax) * MansionDecorationConstants.Half;
             box.size = localMax - localMin;
-            box.isTrigger = placement.Kind == MansionPlacementKind.Hideout ||
+            box.isTrigger = hideoutCollider ||
                             !pickup && Mathf.Max(worldBounds.size.x, Mathf.Max(worldBounds.size.y, worldBounds.size.z)) <= MansionDecorationConstants.SmallObjectSize * 2f;
         }
 
@@ -1581,6 +1601,133 @@ namespace UltimaCinta.Editor
             RemoveChildColliders(van.transform);
             placed++;
             PlaceVanEquipment(container, vanBounds, scene, models, ref placed, ref omitted, omittedDetails);
+        }
+
+        private static string AddFuseSystem(Scene scene, List<MansionLayoutSpace> spaces, List<MansionLayoutDoor> doors,
+            ref int placed)
+        {
+            var generatorSpace = spaces.Find(space => space.Id == "B-GEN");
+            var serviceSpace = spaces.Find(space => space.Id == "G-SER");
+            var generatorRoom = FindGameObjectInScene(scene, "B-GEN");
+            var serviceRoom = FindGameObjectInScene(scene, "G-SER");
+            if (generatorSpace == null || serviceSpace == null || generatorRoom == null || serviceRoom == null)
+            {
+                Debug.LogError("MansionDecorator: no se pudo colocar el fusible; faltan B-GEN o G-SER.");
+                return "incompleto: falta B-GEN o G-SER";
+            }
+
+            var generatorContainer = generatorRoom.transform.Find("Decoracion");
+            var serviceContainer = serviceRoom.transform.Find("Decoracion");
+            if (generatorContainer == null || serviceContainer == null)
+            {
+                Debug.LogError("MansionDecorator: no se encontraron los contenedores de decoración para el sistema eléctrico.");
+                return "incompleto: faltan contenedores de decoración";
+            }
+
+            var generatorObject = FindChild(generatorContainer, "generador");
+            var provisionalGenerator = generatorObject == null;
+            if (provisionalGenerator)
+            {
+                generatorObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                generatorObject.name = "Generador_Provisional";
+                generatorObject.transform.SetParent(generatorContainer, false);
+                generatorObject.transform.localScale = new Vector3(MansionDecorationConstants.GeneratorFallbackWidth,
+                    MansionDecorationConstants.GeneratorFallbackHeight, MansionDecorationConstants.GeneratorFallbackDepth);
+                generatorObject.transform.position = new Vector3(generatorSpace.Bounds.center.x,
+                    MansionGenerator.FloorY(generatorSpace.Level) + MansionDecorationConstants.GeneratorFallbackHeight * MansionDecorationConstants.Half,
+                    generatorSpace.Bounds.center.y);
+                Debug.LogWarning("MansionDecorator: falta el modelo del generador; se colocó Generador_Provisional en B-GEN.");
+            }
+
+            var powerController = generatorObject.GetComponent<MansionPowerController>() ??
+                                  generatorObject.AddComponent<MansionPowerController>();
+            foreach (var root in scene.GetRootGameObjects())
+            foreach (var roomSwitch in root.GetComponentsInChildren<SwitchInteractable>(true))
+                roomSwitch.SetPowerController(powerController);
+
+            const string boxName = "CajaElectrica_Fusible_Provisional";
+            var oldBox = FindChild(serviceContainer, boxName);
+            if (oldBox != null) UnityEngine.Object.DestroyImmediate(oldBox);
+            var electricalBox = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            electricalBox.name = boxName;
+            electricalBox.transform.SetParent(serviceContainer, false);
+            electricalBox.transform.localScale = new Vector3(MansionDecorationConstants.ElectricalBoxWidth,
+                MansionDecorationConstants.ElectricalBoxHeight, MansionDecorationConstants.ElectricalBoxDepth);
+            if (!TryFindElectricalBoxPosition(serviceSpace, doors, out var boxPosition, out var boxYaw))
+            {
+                boxPosition = new Vector3(serviceSpace.Bounds.center.x, MansionGenerator.FloorY(serviceSpace.Level) +
+                    MansionDecorationConstants.ElectricalBoxMountHeight, serviceSpace.Bounds.center.y);
+                boxYaw = 0f;
+                Debug.LogWarning("MansionDecorator: no se halló un tramo libre de muro en G-SER; la caja provisional quedó en el centro del pasillo.");
+            }
+            electricalBox.transform.SetPositionAndRotation(boxPosition, Quaternion.Euler(0f, boxYaw, 0f));
+            var boxCollider = electricalBox.GetComponent<BoxCollider>();
+            boxCollider.isTrigger = true;
+            electricalBox.layer = LayerMask.NameToLayer("Default");
+            var fuseBox = electricalBox.AddComponent<FuseBoxInteractable>();
+            fuseBox.SetGenerator(powerController);
+
+            const string fuseName = "FUSE_Provisional";
+            var oldFuse = FindChild(generatorContainer, fuseName);
+            if (oldFuse != null) UnityEngine.Object.DestroyImmediate(oldFuse);
+            var fuse = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            fuse.name = fuseName;
+            fuse.transform.SetParent(generatorContainer, false);
+            fuse.transform.localScale = Vector3.one * MansionDecorationConstants.FuseMarkerSize;
+            if (TryGetRendererBounds(generatorObject, out var generatorBounds))
+                fuse.transform.position = new Vector3(generatorBounds.center.x,
+                    generatorBounds.max.y + MansionDecorationConstants.FuseMarkerSize * MansionDecorationConstants.Half,
+                    generatorBounds.center.z);
+            else
+                fuse.transform.position = new Vector3(generatorSpace.Bounds.center.x,
+                    MansionGenerator.FloorY(generatorSpace.Level) + 1f, generatorSpace.Bounds.center.y);
+            var fuseCollider = fuse.GetComponent<BoxCollider>();
+            fuseCollider.isTrigger = true;
+            fuse.layer = LayerMask.NameToLayer("Default");
+            var pickup = fuse.AddComponent<PickupInteractable>();
+            pickup.SetItem(LoadOrCreateInventoryItem("FUSE"));
+            AssetDatabase.SaveAssets();
+            placed += 2;
+            Debug.LogWarning("MansionDecorator: no se encontraron modelos de fusible ni caja eléctrica; se colocaron marcadores provisionales FUSE_Provisional y CajaElectrica_Fusible_Provisional.");
+            return provisionalGenerator
+                ? "FUSE_Provisional en B-GEN; caja provisional en G-SER; generador provisional en B-GEN"
+                : "FUSE_Provisional en B-GEN; caja provisional en G-SER; modelo de generador conectado";
+        }
+
+        private static bool TryFindElectricalBoxPosition(MansionLayoutSpace space, List<MansionLayoutDoor> doors,
+            out Vector3 position, out float yaw)
+        {
+            var halfWidth = MansionDecorationConstants.ElectricalBoxWidth * MansionDecorationConstants.Half;
+            var halfDepth = MansionDecorationConstants.ElectricalBoxDepth * MansionDecorationConstants.Half;
+            var candidates = new[]
+            {
+                ('X', space.Bounds.xMin, 1f, space.Bounds.center.y, 90f),
+                ('X', space.Bounds.xMax, -1f, space.Bounds.center.y, 90f),
+                ('Z', space.Bounds.yMin, 1f, space.Bounds.center.x, 0f),
+                ('Z', space.Bounds.yMax, -1f, space.Bounds.center.x, 0f)
+            };
+            foreach (var candidate in candidates)
+            {
+                var alongMin = candidate.Item1 == 'X' ? candidate.Item4 - halfWidth : candidate.Item4 - halfWidth;
+                var alongMax = candidate.Item4 + halfWidth;
+                var blocked = doors.Exists(door => (door.A == space.Id || door.B == space.Id) && door.Axis == candidate.Item1 &&
+                    Mathf.Abs(door.Position - candidate.Item2) <= MansionGeneratorConstants.GridTolerance &&
+                    alongMax > door.Min && alongMin < door.Max);
+                if (blocked) continue;
+                var inwardOffset = halfDepth + MansionGeneratorConstants.SharedWallHalfThickness;
+                var x = candidate.Item1 == 'X'
+                    ? candidate.Item2 + candidate.Item3 * (inwardOffset + MansionDecorationConstants.ElectricalBoxWallGap)
+                    : candidate.Item4;
+                var z = candidate.Item1 == 'Z'
+                    ? candidate.Item2 + candidate.Item3 * (inwardOffset + MansionDecorationConstants.ElectricalBoxWallGap)
+                    : candidate.Item4;
+                position = new Vector3(x, MansionGenerator.FloorY(space.Level) + MansionDecorationConstants.ElectricalBoxMountHeight, z);
+                yaw = candidate.Item5;
+                return true;
+            }
+            position = Vector3.zero;
+            yaw = 0f;
+            return false;
         }
 
         private static void PlaceVanEquipment(Transform decorationRoot, Bounds vehicleBounds, Scene scene,

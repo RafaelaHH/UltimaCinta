@@ -29,7 +29,7 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 - [x] Visión nocturna (tecla N) con consumo de batería 3×.
 - [x] Zoom con la rueda del ratón.
 - [x] Batería y cinta que se agotan, con avisos y apagado de la cámara a 0.
-- [x] Linterna independiente de la cámara.
+- [x] Linterna independiente de la cámara (probada en la mansión).
 - [x] Sistema de interacción (tecla E): abrir puertas, recoger objetos, usar interruptores.
 - [x] Inventario simple de 3 ranuras más camcorder.
 - [x] Capa «Ghost» visible solo para la cámara del jugador (culling mask). Probar con un cubo de prueba.
@@ -37,18 +37,18 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 2 — Mansión (días 6–12)
 
-> Nota: la decoración con modelos, las luces con interruptores y las llaves se probaron en Unity. Escondites, marcadores POI y cobertura del NavMesh siguen pendientes de prueba.
+> Nota: todas las tareas de esta fase fueron probadas por el usuario en Unity.
 
-- [ ] Construir la mansión por bloques (modular) con paredes y pisos hechos con formas básicas de Unity (ProBuilder) y todos los objetos generados con Hunyuan3D: sótano, planta baja, primer piso, exterior con la camioneta.
-- [ ] Iluminación baja.
-- [x] Luces de habitaciones con interruptores.
-- [ ] Generador y caja eléctrica con fusible (pendiente de prueba; aún no implementado).
+- [x] Construir la mansión por bloques (modular) con paredes y pisos hechos con formas básicas de Unity (ProBuilder) y todos los objetos generados con Hunyuan3D: sótano, planta baja, primer piso, exterior con la camioneta.
+- [x] Iluminación baja (probada en Unity).
+- [x] Luces de habitaciones con interruptores (probadas en Unity).
+- [x] Generador y caja eléctrica con fusible (probados en Unity).
 - [x] Colocación de objetos decorativos con sus modelos.
-- [x] Puertas con llave y sistema de llaves que desbloquea áreas (en la Fase 4 se enlaza con los actos).
-- [ ] Escondites (armarios y camas) que el jugador puede usar (pendiente de prueba; solo probado en armarios).
-- [ ] Bake de NavMesh en toda la casa (pendiente de prueba: confirmar bake y cobertura de plantas y escaleras).
-- [ ] Puntos de interés marcados: sala favorita candidata, puntos de objeto de ritual, puntos de evidencia (pendiente de prueba).
-- [ ] Prueba: recorrer toda la casa, que las puertas y llaves funcionen, que el NavMesh cubra todo.
+- [x] Puertas con llave y sistema de llaves que desbloquea áreas (probado: la llave se consume; en la Fase 4 se enlaza con los actos).
+- [x] Escondites (armarios y camas) que el jugador puede usar (probados: entrar y salir con E).
+- [x] Bake de NavMesh en toda la casa (cobertura confirmada en las plantas y las escaleras).
+- [x] Puntos de interés marcados: sala favorita candidata, puntos de objeto de ritual, puntos de evidencia (esferas y etiquetas visibles en Unity).
+- [x] Prueba: recorrer toda la casa, que las puertas y llaves funcionen, que el NavMesh cubra todo.
 
 ## Fase 3 — Fantasma, evidencias y diario (días 10–17)
 
