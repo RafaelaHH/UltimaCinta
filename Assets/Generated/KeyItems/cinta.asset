@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: cinta
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: cinta
+  visualPrefab: {fileID: 919132149155446097, guid: 138d41891bc65094f9de9b8a807c8f3c, type: 3}
+  kind: 0

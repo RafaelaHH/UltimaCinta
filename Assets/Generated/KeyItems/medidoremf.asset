@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: medidoremf
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: medidoremf
+  visualPrefab: {fileID: 919132149155446097, guid: 6f8135de4f6d86f418ea0d984daddb46, type: 3}
+  kind: 0

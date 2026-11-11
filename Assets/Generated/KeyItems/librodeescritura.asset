@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: librodeescritura
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: librodeescritura
+  visualPrefab: {fileID: 919132149155446097, guid: 30428bcd281e31947a9e62b85810539c, type: 3}
+  kind: 0

@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 
 namespace UltimaCinta.Lighting
 {
+    [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class MansionNightLighting : MonoBehaviour
     {
@@ -16,7 +17,8 @@ namespace UltimaCinta.Lighting
 
         private void Awake()
         {
-            ApplyToScene(gameObject.scene);
+            if (gameObject.scene.IsValid() && gameObject.scene == SceneManager.GetActiveScene())
+                ApplyToScene(gameObject.scene);
         }
 
         public static void EnsureForScene(Scene scene)
@@ -39,12 +41,21 @@ namespace UltimaCinta.Lighting
             RenderSettings.reflectionIntensity = ReflectionIntensity;
             RenderSettings.skybox = null;
 
+            var roomLightsWithoutShadows = 0;
             foreach (var light in FindObjectsByType<Light>(FindObjectsInactive.Include))
             {
-                if (light.gameObject.scene != scene || light.type != LightType.Directional) continue;
-                light.color = DirectionalBlue;
-                light.intensity = DirectionalIntensity;
-                light.shadows = LightShadows.None;
+                if (light.gameObject.scene != scene) continue;
+                if (light.type == LightType.Directional)
+                {
+                    light.color = DirectionalBlue;
+                    light.intensity = DirectionalIntensity;
+                    light.shadows = LightShadows.None;
+                }
+                else if (light.shadows != LightShadows.None)
+                {
+                    light.shadows = LightShadows.None;
+                    roomLightsWithoutShadows++;
+                }
             }
 
             foreach (var camera in FindObjectsByType<Camera>(FindObjectsInactive.Include))
@@ -55,7 +66,8 @@ namespace UltimaCinta.Lighting
             }
 
             Debug.Log($"Iluminación nocturna aplicada en {scene.name}: direccional={DirectionalIntensity:0.00}, " +
-                      $"ambiente={NightBlue} x {AmbientIntensity:0.00}, reflejos={ReflectionIntensity:0.00}, skybox=NULL.");
+                      $"ambiente={NightBlue} x {AmbientIntensity:0.00}, reflejos={ReflectionIntensity:0.00}, " +
+                      $"sombras de luces interiores desactivadas={roomLightsWithoutShadows}, skybox=NULL.");
         }
     }
 }

@@ -152,6 +152,10 @@ GameObject:
   - component: {fileID: 3991757742119839634}
   - component: {fileID: 7542268351563614540}
   - component: {fileID: 8967958273892857314}
+  - component: {fileID: 999332507670316970}
+  - component: {fileID: 6051241905810618186}
+  - component: {fileID: 3085362440052189165}
+  - component: {fileID: 6051756007178806228}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -300,6 +304,9 @@ MonoBehaviour:
   gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
   view: {fileID: 4925292595261242836}
   input: {fileID: 0}
+  interactionLayers:
+    serializedVersion: 2
+    m_Bits: 4294967291
 --- !u!114 &2860089237938010452
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -373,6 +380,7 @@ MonoBehaviour:
   volume: {fileID: 0}
   playerCamera: {fileID: 0}
   resources: {fileID: 0}
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
 --- !u!114 &8967958273892857314
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -387,6 +395,65 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.CameraSystem.FlashlightController
   gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
   flashlight: {fileID: 389957060540265186}
+--- !u!114 &999332507670316970
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5963287663570712900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86ea23d60133a784f8fafc06f1b4dc80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.SanityController
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
+  currentSanity: -1
+  playerCamera: {fileID: 0}
+--- !u!114 &6051241905810618186
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5963287663570712900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23108c1d7373cd1429dd84d2d785e9b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostJournal
+  catalog:
+  - {fileID: 11400000, guid: 805c0c9ece5f72649afc96afc8734c6e, type: 2}
+  - {fileID: 11400000, guid: b01caf5e481f2f0419610dcdf5da7190, type: 2}
+  - {fileID: 11400000, guid: 0ca5a90c6db5aab4194366b207caba25, type: 2}
+  - {fileID: 11400000, guid: d803b7e027967e54389fedf9f98008ed, type: 2}
+--- !u!114 &3085362440052189165
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5963287663570712900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a51da66d8284f7848a85597bf5dde29c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostCameraInterference
+  playerCamera: {fileID: 0}
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
+--- !u!114 &6051756007178806228
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5963287663570712900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e6305947619ab24ba2134ea18fcf566, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostNoiseEmitter
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
 --- !u!1 &6676137769559181388
 GameObject:
   m_ObjectHideFlags: 0
@@ -461,7 +528,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4294967039
+    m_Bits: 4294967295
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0

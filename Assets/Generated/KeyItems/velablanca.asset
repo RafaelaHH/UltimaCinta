@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: velablanca
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: velablanca
+  visualPrefab: {fileID: 919132149155446097, guid: b746c7643783a414292f6ff26a73b64d, type: 3}
+  kind: 0

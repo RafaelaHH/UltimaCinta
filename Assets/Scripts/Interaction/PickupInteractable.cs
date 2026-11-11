@@ -5,8 +5,14 @@ namespace UltimaCinta.Interaction
     {
         [SerializeField] private UltimaCinta.Data.InventoryItem item;
         public UltimaCinta.Data.InventoryItem Item => item;
-        public string Prompt => item != null ? $"E — pick up {item.DisplayName}" : "E — pick up [MISSING ITEM]";
-        public void SetItem(UltimaCinta.Data.InventoryItem definition) { item = definition; }
+        public string Prompt => item != null ? $"E — recoger {item.DisplayName}" : "E — recoger [objeto sin definir]";
+        private void Awake() { EnsureVisual(); }
+        public void SetItem(UltimaCinta.Data.InventoryItem definition) { item = definition; EnsureVisual(); }
+        private void EnsureVisual()
+        {
+            if (item == null || GetComponentInChildren<Renderer>(true) != null) return;
+            ItemVisualFactory.CreateVisual(item, transform, 0.4f);
+        }
         public bool Interact(GameObject interactor)
         {
             if (item == null)

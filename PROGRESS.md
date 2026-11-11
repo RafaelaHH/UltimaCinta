@@ -52,17 +52,23 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 3 — Fantasma, evidencias y diario (días 10–17)
 
-- [ ] ScriptableObject GhostType con: nombre, evidencias, velocidad, comportamiento, objetos de ritual.
-- [ ] Crear los 4 fantasmas: Ghoul, Vampiro, Poltergeist, Espectro (modelos generados con Hunyuan3D; si salen sin esqueleto, se animan por código: flotar, arrastrarse, parpadear).
-- [ ] IA base con estados: Deambular, Actividad, Cacería, Descanso.
-- [ ] Elegir tipo de fantasma, sala favorita y agresividad al iniciar la partida.
-- [ ] Comportamientos propios: Ghoul (oído), Vampiro (oscuridad y batería), Poltergeist (objetos), Espectro (paredes y teletransporte).
-- [ ] Interferencia en la cámara según distancia al fantasma.
-- [ ] Sistema de cacería: 45–90 s, luces que se apagan, estática en la cámara, jugador atrapado muere.
-- [ ] Las 5 evidencias: aparición, EMF, termómetro, libro de escritura, orbes.
-- [ ] Diario: marcar evidencias, filtrar fantasmas posibles, elegir uno (en local; se comparte en red en la Fase 5).
-- [ ] Sistema de cordura con alucinaciones.
-- [ ] Modo espectador al morir, con parpadeo de luces.
+> Implementación y configuración completadas en Unity `6000.5.6f1`. La configuración de `Mansion_Generated` terminó en batchmode con código 0: cuatro prefabs/tipos, selección de sala, cámara, 31 puntos de evidencia y tabla A/C/D, B/C/E, B/D/E, A/B/E validados. También se agregó una gracia antes de la primera cacería para evitar la muerte casi inmediata observada al probar Ghoul. Queda pendiente probar en Play Mode los cuatro fantasmas y confirmar sus evidencias; la apertura del Editor desde Unity Hub no funcionó durante esta sesión, así que no se marca la prueba final como hecha.
+
+> Seguimiento: los modelos FBX existentes quedaron conectados a objetos en mano y al soltar; se añadieron pastillas y baterías utilizables (Q), cuatro de cada una repartidas por la casa, aparición del fantasma al entrar en la sala favorita y efectos auditivos/visuales para cordura cero. El Editor compiló los cambios y ejecutó la configuración de objetos. Falta verificar estos comportamientos visual y funcionalmente en Play Mode; la vista del Editor quedó negra durante la prueba.
+
+> La interacción de la camioneta ya usa una cabina física con acceso por rampa y equipo recogible; el diario tiene secciones de Evidencias, Fantasmas, Ritual y Notas. Pendiente de verificar la entrada/salida y navegación de secciones en Play Mode.
+
+- [x] ScriptableObject GhostType con: nombre, evidencias, velocidad, comportamiento, objetos de ritual.
+- [x] Crear los 4 fantasmas: Ghoul, Vampiro, Poltergeist, Espectro (prefabs normalizados y movimiento por código donde aplica; no se generaron modelos Hunyuan3D nuevos).
+- [x] IA base con estados: Deambular, Actividad, Cacería, Descanso.
+- [x] Elegir tipo de fantasma, sala favorita y agresividad al iniciar la partida.
+- [x] Comportamientos propios: Ghoul (oído), Vampiro (oscuridad y batería), Poltergeist (objetos), Espectro (paredes y teletransporte).
+- [x] Interferencia en la cámara según distancia al fantasma.
+- [x] Sistema de cacería: duración configurable en el rango del GDD, luces que se apagan, estática en la cámara, jugador atrapado muere.
+- [x] Las 5 evidencias: aparición, EMF, termómetro, libro de escritura, orbes.
+- [x] Diario: marcar evidencias, filtrar fantasmas posibles, elegir uno (en local; se comparte en red en la Fase 5).
+- [x] Sistema de cordura con alucinaciones.
+- [x] Modo espectador al morir, con parpadeo de luces.
 - [ ] Prueba: forzar cada tipo de fantasma, confirmar que las evidencias coinciden con la tabla del GDD.
 
 ## Fase 4 — Reloj y ritual (días 15–20)

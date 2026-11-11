@@ -13,6 +13,7 @@ namespace UltimaCinta.Interaction
         private bool _unlocked;
         private Quaternion _closedRotation;
         public string Prompt => _open ? "E — close door" : !_unlocked ? $"E — unlock with {keyId}" : "E — open door";
+        public void ForceSlamFromGhost() { if (_unlocked) _open = false; }
         private void Awake() { if (hinge == null) hinge = transform; _closedRotation = hinge.localRotation; _unlocked = keyId == "NONE"; }
         private void Update()
         {

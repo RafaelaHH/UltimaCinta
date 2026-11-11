@@ -219,6 +219,116 @@ namespace UltimaCinta.Editor
             Debug.Log($"Mansión generada: recintos por nivel [{string.Join(", ", counts)}], {wallCount} muros, {doorCount} puertas, {stepCount} escalones y {stairs.Count} escaleras. Giro +90°: {doorsSwingingPositive}, giro -90°: {doorsSwingingNegative}, sin resolver: {unresolvedDoorCount}.");
         }
 
+        [MenuItem("Tools/UltimaCinta/Mansión/Proteger aberturas de escaleras")]
+        public static void ProtectStairOpenings()
+        {
+            var projectRoot = Directory.GetParent(Application.dataPath);
+            var planPath = Path.Combine(projectRoot.FullName, MansionGeneratorConstants.PlanPath);
+            if (!File.Exists(planPath))
+            {
+                Debug.LogError("MansionGenerator: falta Docs/PlanoMansion.md; no se añadieron barandas.");
+                return;
+            }
+
+            var errors = new List<string>();
+            var stairs = MansionLayoutPlanReader.ReadStairs(File.ReadAllLines(planPath), errors);
+            if (errors.Count > 0)
+            {
+                Debug.LogError("MansionGenerator: no se pudo leer el plano de escaleras: " + string.Join("; ", errors));
+                return;
+            }
+
+            var scene = EditorSceneManager.OpenScene(MansionGeneratorConstants.ScenePath, OpenSceneMode.Single);
+            var railing = AssetDatabase.LoadAssetAtPath<Material>(MansionGeneratorConstants.MaterialsFolder + "/Mansion_Railing.mat");
+            if (railing == null)
+            {
+                Debug.LogError("MansionGenerator: falta Mansion_Railing.mat; ejecuta primero el generador de mansión.");
+                return;
+            }
+
+            var protectedCount = 0;
+            foreach (var stair in stairs)
+            {
+                var root = FindStairRoot(scene, "Escalera_" + stair.Id);
+                if (root == null) continue;
+                var oldGuard = root.Find("BarandaSeguridad_Abertura");
+                if (oldGuard != null) UnityEngine.Object.DestroyImmediate(oldGuard.gameObject);
+                var guard = new GameObject("BarandaSeguridad_Abertura").transform;
+                guard.SetParent(root, false);
+                BuildUpperLandingGuard(stair, guard, railing);
+                protectedCount++;
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log($"MansionGenerator: se protegieron {protectedCount} huecos de escalera con barandas físicas en la planta superior.");
+        }
+
+        private static Transform FindStairRoot(Scene scene, string name)
+        {
+            foreach (var sceneRoot in scene.GetRootGameObjects())
+            {
+                var stack = new Stack<Transform>();
+                stack.Push(sceneRoot.transform);
+                while (stack.Count > 0)
+                {
+                    var current = stack.Pop();
+                    if (current.name == name) return current;
+                    foreach (Transform child in current) stack.Push(child);
+                }
+            }
+            return null;
+        }
+
+        private static void BuildUpperLandingGuard(MansionLayoutStair stair, Transform parent, Material material)
+        {
+            var alongZ = stair.Opening.height >= stair.Opening.width;
+            var risesPositive = stair.Direction.IndexOf("sur", StringComparison.OrdinalIgnoreCase) < 0 &&
+                                stair.Direction.IndexOf("oeste", StringComparison.OrdinalIgnoreCase) < 0;
+            var lowAlong = alongZ ? (risesPositive ? stair.Opening.yMin : stair.Opening.yMax) :
+                (risesPositive ? stair.Opening.xMin : stair.Opening.xMax);
+            var highAlong = alongZ ? (risesPositive ? stair.Opening.yMax : stair.Opening.yMin) :
+                (risesPositive ? stair.Opening.xMax : stair.Opening.xMin);
+            var acrossMin = alongZ ? stair.Opening.xMin : stair.Opening.yMin;
+            var acrossMax = alongZ ? stair.Opening.xMax : stair.Opening.yMax;
+            var upperY = FloorY(stair.LevelB);
+            var thickness = MansionGeneratorConstants.StairRailThickness;
+            var railHeight = MansionGeneratorConstants.StairRailHeight;
+            var length = Mathf.Abs(highAlong - lowAlong);
+            var sideRailSize = alongZ ? new Vector3(thickness, thickness, length) : new Vector3(length, thickness, thickness);
+            var yLevels = new[] { upperY + railHeight * 0.42f, upperY + railHeight };
+
+            foreach (var side in new[] { acrossMin, acrossMax })
+            foreach (var y in yLevels)
+            {
+                var position = alongZ ? new Vector3(side, y, (lowAlong + highAlong) * MansionGeneratorConstants.Half) :
+                    new Vector3((lowAlong + highAlong) * MansionGeneratorConstants.Half, y, side);
+                CreateBox("Baranda", position, sideRailSize, parent, material);
+            }
+
+            var postCount = Mathf.Max(1, Mathf.CeilToInt(length / 0.9f));
+            for (var index = 0; index <= postCount; index++)
+            {
+                var along = Mathf.Lerp(lowAlong, highAlong, index / (float)postCount);
+                foreach (var side in new[] { acrossMin, acrossMax })
+                {
+                    var postPosition = alongZ ? new Vector3(side, upperY + railHeight * MansionGeneratorConstants.Half, along) :
+                        new Vector3(along, upperY + railHeight * MansionGeneratorConstants.Half, side);
+                    CreateBox("Poste", postPosition, new Vector3(thickness, railHeight, thickness), parent, material);
+                }
+            }
+
+            foreach (var y in yLevels)
+            {
+                var position = alongZ ? new Vector3((acrossMin + acrossMax) * MansionGeneratorConstants.Half, y, lowAlong) :
+                    new Vector3(lowAlong, y, (acrossMin + acrossMax) * MansionGeneratorConstants.Half);
+                var crossRailSize = alongZ
+                    ? new Vector3(Mathf.Abs(acrossMax - acrossMin), thickness, thickness)
+                    : new Vector3(thickness, thickness, Mathf.Abs(acrossMax - acrossMin));
+                CreateBox("BarandaExtremo", position, crossRailSize, parent, material);
+            }
+        }
+
         private static bool ValidateInput(List<MansionLayoutSpace> spaces, List<MansionLayoutDoor> doors,
             List<MansionLayoutStair> stairs, List<MansionLayoutGate> gates, List<ExteriorRect> exterior, List<string> errors)
         {
@@ -357,7 +467,8 @@ namespace UltimaCinta.Editor
             if (shader == null) return null;
             EnsureAssetFolder("Assets/Generated");
             EnsureAssetFolder(MansionGeneratorConstants.MaterialsFolder);
-            return new Materials
+            EnsureAssetFolder(MansionGeneratorConstants.MaterialsFolder + "/Texturas");
+            var materials = new Materials
             {
                 Wall = LoadOrCreateMaterial(shader, "Mansion_Wall", new Color(0.34f, 0.32f, 0.29f)),
                 Floor = LoadOrCreateMaterial(shader, "Mansion_Floor", new Color(0.22f, 0.20f, 0.18f)),
@@ -369,6 +480,70 @@ namespace UltimaCinta.Editor
                 Ground = LoadOrCreateMaterial(shader, "Mansion_Ground", new Color(0.16f, 0.18f, 0.14f)),
                 Placeholder = LoadOrCreateMaterial(shader, "Mansion_VanPlaceholder", new Color(0.12f, 0.14f, 0.16f))
             };
+            ApplySurfaceTexture(materials.Wall, "Pared yeso viejo", new Color(0.40f, 0.37f, 0.31f), new Color(0.72f, 0.65f, 0.52f), 3f, 2f, false);
+            ApplySurfaceTexture(materials.Floor, "Piso madera gastada", new Color(0.16f, 0.105f, 0.065f), new Color(0.43f, 0.30f, 0.18f), 5f, 4f, true);
+            ApplySurfaceTexture(materials.Ceiling, "Techo yeso manchado", new Color(0.24f, 0.22f, 0.18f), new Color(0.47f, 0.42f, 0.34f), 3f, 2f, false);
+            EditorUtility.SetDirty(materials.Wall);
+            EditorUtility.SetDirty(materials.Floor);
+            EditorUtility.SetDirty(materials.Ceiling);
+            return materials;
+        }
+
+        [MenuItem("Tools/UltimaCinta/Mansión/Aplicar texturas a la casa")]
+        public static void ApplyMansionSurfaceTextures()
+        {
+            if (CreateMaterials() == null)
+            {
+                Debug.LogError("No se encontró el shader URP/Lit para aplicar texturas a la casa.");
+                return;
+            }
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("Texturas de yeso envejecido y madera aplicadas a las paredes, pisos y techos de Mansion_Generated.");
+        }
+
+        private static void ApplySurfaceTexture(Material material, string textureName, Color dark, Color light,
+            float tilesX, float tilesY, bool wood)
+        {
+            if (material == null) return;
+            var texturePath = MansionGeneratorConstants.MaterialsFolder + "/Texturas/" + textureName + ".asset";
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+            if (texture == null)
+            {
+                const int resolution = 256;
+                texture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false, true)
+                {
+                    name = textureName,
+                    wrapMode = TextureWrapMode.Repeat,
+                    filterMode = FilterMode.Bilinear
+                };
+                for (var y = 0; y < resolution; y++)
+                for (var x = 0; x < resolution; x++)
+                {
+                    var u = x / (float)resolution;
+                    var v = y / (float)resolution;
+                    var grain = 0.5f + 0.22f * Mathf.Sin((u * 17f + Mathf.Sin(v * 5f)) * Mathf.PI * 2f) +
+                                0.18f * Mathf.Sin((v * 23f + Mathf.Sin(u * 7f)) * Mathf.PI * 2f);
+                    var stain = 0.5f + 0.5f * Mathf.Sin((u * 3f + Mathf.Sin(v * 2f) * 0.2f) * Mathf.PI * 2f) *
+                                Mathf.Sin((v * 4f + Mathf.Sin(u * 3f) * 0.2f) * Mathf.PI * 2f);
+                    var shade = wood ? 0.66f + grain * 0.25f + stain * 0.09f : 0.76f + stain * 0.18f + grain * 0.06f;
+                    if (wood)
+                    {
+                        var plankLine = Mathf.Min(Mathf.Repeat(v * 8f, 1f), 1f - Mathf.Repeat(v * 8f, 1f));
+                        var boardIndex = Mathf.FloorToInt(v * 8f);
+                        var seamU = Mathf.Repeat(u * 2f + (boardIndex % 2) * 0.5f, 1f);
+                        if (plankLine < 0.018f || seamU < 0.012f) shade *= 0.52f;
+                    }
+                    texture.SetPixel(x, y, Color.Lerp(dark, light, Mathf.Clamp01(shade)));
+                }
+                texture.Apply(false, true);
+                AssetDatabase.CreateAsset(texture, texturePath);
+            }
+
+            if (material.HasProperty("_BaseMap")) material.SetTexture("_BaseMap", texture);
+            if (material.HasProperty("_MainTex")) material.SetTexture("_MainTex", texture);
+            if (material.HasProperty("_BaseMap")) material.SetTextureScale("_BaseMap", new Vector2(tilesX, tilesY));
+            else if (material.HasProperty("_MainTex")) material.SetTextureScale("_MainTex", new Vector2(tilesX, tilesY));
         }
 
         private static void EnsureAssetFolder(string path)

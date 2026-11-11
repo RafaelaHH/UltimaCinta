@@ -53,6 +53,7 @@ namespace UltimaCinta.Interaction
         public string Prompt => occupant != null ? "E — salir" : "E — esconderse";
         public string HideoutType => hideoutType;
         public bool IsUnderBed => underBed;
+        public bool IsOccupant(GameObject player) => player != null && occupant == player;
 
         private void Awake()
         {

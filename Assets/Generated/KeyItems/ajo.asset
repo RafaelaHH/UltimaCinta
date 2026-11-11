@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: ajo
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: ajo
+  visualPrefab: {fileID: 919132149155446097, guid: 471a0c739bc6eec4aac873e176d1fd1b, type: 3}
+  kind: 0

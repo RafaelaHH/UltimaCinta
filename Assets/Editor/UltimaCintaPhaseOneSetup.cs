@@ -74,7 +74,7 @@ namespace UltimaCinta.Editor
             camObject.transform.SetParent(pivot, false);
             var camera = camObject.AddComponent<Camera>();
             camera.fieldOfView = config.CameraFieldOfView;
-            camera.cullingMask &= ~(1 << LayerMask.NameToLayer(GhostLayerName));
+            camera.cullingMask |= 1 << LayerMask.NameToLayer(GhostLayerName);
             camera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
             camera.nearClipPlane = 0.05f;
             camObject.AddComponent<AudioListener>();

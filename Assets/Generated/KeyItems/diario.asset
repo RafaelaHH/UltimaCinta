@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: diario
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: diario
+  visualPrefab: {fileID: 919132149155446097, guid: d9c79bd5916e0f445afb5056a369f838, type: 3}
+  kind: 0

@@ -9,10 +9,18 @@ namespace UltimaCinta.CameraSystem
         private const float FlashlightInnerSpotAngle = 40f;
         [SerializeField] private UltimaCinta.Data.GameConfig gameConfig;
         [SerializeField] private Light flashlight;
+        private UltimaCinta.Player.PlayerInventory _inventory;
+        private bool _available;
         private void Awake()
         {
             if (flashlight == null) flashlight = GetComponentInChildren<Light>();
             if (flashlight == null) return;
+            _inventory = GetComponent<UltimaCinta.Player.PlayerInventory>();
+            if (_inventory != null)
+            {
+                _inventory.SlotChanged += OnInventoryChanged;
+                _available = _inventory.ContainsItem("linterna");
+            }
             if (gameConfig != null)
             {
                 flashlight.range = gameConfig.FlashlightRange;
@@ -30,7 +38,23 @@ namespace UltimaCinta.CameraSystem
                 flashlight.range = FlashlightRange;
             }
             flashlight.shadows = LightShadows.None;
+            flashlight.enabled = _available;
         }
-        public void Toggle() { if (flashlight != null) flashlight.enabled = !flashlight.enabled; }
+        private void OnDestroy() { if (_inventory != null) _inventory.SlotChanged -= OnInventoryChanged; }
+        private void OnInventoryChanged(int slot, UltimaCinta.Data.InventoryItem item)
+        {
+            _available = _inventory != null && _inventory.ContainsItem("linterna");
+            if (!_available && flashlight != null) flashlight.enabled = false;
+        }
+        public void Toggle()
+        {
+            if (flashlight == null) return;
+            if (!_available)
+            {
+                _inventory?.ShowMessage("Recoge la linterna en la camioneta");
+                return;
+            }
+            flashlight.enabled = !flashlight.enabled;
+        }
     }
 }

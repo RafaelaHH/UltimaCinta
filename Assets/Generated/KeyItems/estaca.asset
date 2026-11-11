@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: estaca
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: estaca
+  visualPrefab: {fileID: 919132149155446097, guid: e31678dc926ec3343a5a636b8deb7d3d, type: 3}
+  kind: 0

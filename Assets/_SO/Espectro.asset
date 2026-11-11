@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ca5c99830b1443ba420bf81104ede03, type: 3}
+  m_Name: Espectro
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostType
+  displayName: Espectro
+  movementSpeed: 4
+  evidences: 00000000
+  behavior: 2
+  ritualItems:
+  - {fileID: 11400000, guid: ac5552e2166db4443b1281b1200e1972, type: 2}

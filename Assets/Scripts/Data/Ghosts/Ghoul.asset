@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ca5c99830b1443ba420bf81104ede03, type: 3}
+  m_Name: Ghoul
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostType
+  displayName: Ghoul
+  movementSpeed: 1.7
+  evidences: 000000000200000003000000
+  behavior: 15
+  ritualItems:
+  - {fileID: 11400000, guid: 59f42c6cc57146146968aa498e15890d, type: 2}
+  - {fileID: 11400000, guid: f18222d53ab29cd439f7516a619ce33d, type: 2}
+  - {fileID: 11400000, guid: 510f989dbff39bc4db2bee234015c7e8, type: 2}
+  ghostPrefab: {fileID: 4952201912201586612, guid: 63791029cd6e9c342b8675539b4f568f, type: 3}

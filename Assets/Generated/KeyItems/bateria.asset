@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: bateria
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: bateria
+  visualPrefab: {fileID: 919132149155446097, guid: 8e6f6abc3b858894cada8c100b61e0e1, type: 3}
+  kind: 2

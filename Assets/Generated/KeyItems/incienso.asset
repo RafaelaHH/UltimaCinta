@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: incienso
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: incienso
+  visualPrefab: {fileID: 919132149155446097, guid: 33f9fc5ab97f71c429b18267da472c7d, type: 3}
+  kind: 0

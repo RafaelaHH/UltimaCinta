@@ -1,0 +1,174 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &1956667130399025538
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0.00000003774895
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_Name
+      value: Vampiro
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      propertyPath: m_Layer
+      value: 8
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2849187640705469722}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6095025078644026999}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5772261274493513743}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1984874499779361479}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5948845848332624913}
+  m_SourcePrefab: {fileID: 100100000, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+--- !u!1 &1722085565006927059 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+  m_PrefabInstance: {fileID: 1956667130399025538}
+  m_PrefabAsset: {fileID: 0}
+--- !u!136 &2849187640705469722
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.00231372
+  m_Height: 0.011540419
+  m_Direction: 1
+  m_Center: {x: 0.000034730067, y: 0.0057702097, z: -0.00015142001}
+--- !u!195 &6095025078644026999
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.00234845
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2.6
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &5772261274493513743
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc910ae47a7e22d49b6d6a6f47019ce3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostAgent
+  navigation: {fileID: 0}
+--- !u!114 &1984874499779361479
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 635ff25e548c9474e9f056cff1016ab0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostModelMotion
+  floatAmplitude: 0.12
+  floatCyclesPerSecond: 0.7
+  crawlHeight: 0.45
+  blinkIntervalSeconds: 8
+  blinkDurationSeconds: 0.12
+--- !u!114 &5948845848332624913
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfb3bd059161d0c4d977d50625c874e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostOrbField
+  orbCount: 4
+  orbitRadius: 1.1
+  orbitSpeed: 0.45
+  orbSize: 0.07

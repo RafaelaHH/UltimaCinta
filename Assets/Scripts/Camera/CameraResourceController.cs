@@ -9,7 +9,8 @@ namespace UltimaCinta.CameraSystem
         [SerializeField] private GameConfig gameConfig;
         [SerializeField] private Camera playerCamera;
         private float _batteryMinutes, _tapeMinutes, _zoom = 1f;
-        private bool _nightVision, _powered = true;
+        private UltimaCinta.Player.PlayerInventory _inventory;
+        private bool _nightVision, _powered;
         public event Action ResourcesChanged;
         public float BatteryNormalized => gameConfig == null || gameConfig.BatteryDurationMinutes <= 0 ? 0 : _batteryMinutes / gameConfig.BatteryDurationMinutes;
         public float TapeNormalized => gameConfig == null || gameConfig.TapeDurationMinutes <= 0 ? 0 : _tapeMinutes / gameConfig.TapeDurationMinutes;
@@ -20,9 +21,17 @@ namespace UltimaCinta.CameraSystem
         {
             if (gameConfig == null) gameConfig = Resources.Load<GameConfig>("GameConfig");
             if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
+            _inventory = GetComponent<UltimaCinta.Player.PlayerInventory>();
+            if (_inventory != null)
+            {
+                _powered = _inventory.HasCamcorder;
+                _inventory.CamcorderChanged += OnCamcorderChanged;
+            }
             if (gameConfig != null) { _batteryMinutes = gameConfig.BatteryDurationMinutes; _tapeMinutes = gameConfig.TapeDurationMinutes; }
             ApplyZoom();
         }
+        private void OnDestroy() { if (_inventory != null) _inventory.CamcorderChanged -= OnCamcorderChanged; }
+        private void OnCamcorderChanged(bool available) { _powered = available; if (!available) _nightVision = false; ResourcesChanged?.Invoke(); }
         public void ToggleNightVision() { if (!_powered) return; _nightVision = !_nightVision; ResourcesChanged?.Invoke(); }
         public void SetZoom(float inputDelta)
         {
@@ -59,6 +68,23 @@ namespace UltimaCinta.CameraSystem
             _nightVision = false;
             _powered = true;
             ResourcesChanged?.Invoke();
+        }
+        public void DrainBatteryForGhost(float seconds)
+        {
+            if (gameConfig == null || seconds <= 0f || !_powered) return;
+            _batteryMinutes = Mathf.Max(0f, _batteryMinutes - seconds / 60f);
+            if (_batteryMinutes <= 0f) { _powered = false; _nightVision = false; }
+            ResourcesChanged?.Invoke();
+        }
+        public bool RestoreBattery()
+        {
+            if (gameConfig == null || _inventory == null || !_inventory.HasCamcorder || _tapeMinutes <= 0f ||
+                _batteryMinutes >= gameConfig.BatteryDurationMinutes) return false;
+            _batteryMinutes = Mathf.Min(gameConfig.BatteryDurationMinutes,
+                _batteryMinutes + gameConfig.BatteryDurationMinutes * gameConfig.CameraBatteryRefillFraction);
+            _powered = _batteryMinutes > 0f;
+            ResourcesChanged?.Invoke();
+            return true;
         }
         private void ApplyZoom() { if (playerCamera != null && gameConfig != null) playerCamera.fieldOfView = gameConfig.CameraFieldOfView / _zoom; }
     }

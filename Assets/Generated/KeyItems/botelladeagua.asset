@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: botelladeagua
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: botelladeagua
+  visualPrefab: {fileID: 919132149155446097, guid: 7d95f547723708c4c8e591fd9fad0df6, type: 3}
+  kind: 0

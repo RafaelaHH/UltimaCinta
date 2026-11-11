@@ -18,6 +18,8 @@ namespace UltimaCinta.Player
         private InputAction _slotOne;
         private InputAction _slotTwo;
         private InputAction _slotThree;
+        private InputAction _dropItem;
+        private InputAction _useItem;
 
         public Vector2 Move => _move?.ReadValue<Vector2>() ?? Vector2.zero;
         public Vector2 LookDelta => _look?.ReadValue<Vector2>() ?? Vector2.zero;
@@ -30,6 +32,8 @@ namespace UltimaCinta.Player
         public int InventorySlotPressed => _slotThree?.WasPressedThisFrame() == true ? 3 :
             _slotTwo?.WasPressedThisFrame() == true ? 2 :
             _slotOne?.WasPressedThisFrame() == true ? 1 : 0;
+        public bool DropItemPressed => _dropItem?.WasPressedThisFrame() ?? false;
+        public bool UseItemPressed => _useItem?.WasPressedThisFrame() ?? false;
 
         private void Awake()
         {
@@ -80,6 +84,8 @@ namespace UltimaCinta.Player
             _slotOne = AddButton("InventorySlot1", "<Keyboard>/1");
             _slotTwo = AddButton("InventorySlot2", "<Keyboard>/2");
             _slotThree = AddButton("InventorySlot3", "<Keyboard>/3");
+            _dropItem = AddButton("DropItem", "<Keyboard>/g");
+            _useItem = AddButton("UseItem", "<Keyboard>/q", "<Gamepad>/buttonWest");
 
             _zoom = _actions.AddAction("Zoom", InputActionType.PassThrough, expectedControlLayout: "Vector2");
             _zoom.AddBinding("<Mouse>/scroll");

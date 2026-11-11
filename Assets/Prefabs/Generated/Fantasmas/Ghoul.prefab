@@ -10,7 +10,11 @@ GameObject:
   m_Component:
   - component: {fileID: 2498984098075897380}
   - component: {fileID: 257176418051743703}
-  m_Layer: 0
+  - component: {fileID: 8612873646512970020}
+  - component: {fileID: 6013109044557537408}
+  - component: {fileID: 8887278141364576662}
+  - component: {fileID: 4161546584513392969}
+  m_Layer: 8
   m_Name: Ghoul
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -52,10 +56,78 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.60893166
-  m_Height: 1.6999999
+  m_Radius: 0.65
+  m_Height: 2.6
   m_Direction: 1
-  m_Center: {x: 0, y: 0.84999996, z: 0}
+  m_Center: {x: 0, y: 1.3, z: 0}
+--- !u!195 &8612873646512970020
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4952201912201586612}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2.6
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &6013109044557537408
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4952201912201586612}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc910ae47a7e22d49b6d6a6f47019ce3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostAgent
+  navigation: {fileID: 0}
+--- !u!114 &8887278141364576662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4952201912201586612}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 635ff25e548c9474e9f056cff1016ab0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostModelMotion
+  floatAmplitude: 0.12
+  floatCyclesPerSecond: 0.7
+  crawlHeight: 0.45
+  blinkIntervalSeconds: 8
+  blinkDurationSeconds: 0.12
+--- !u!114 &4161546584513392969
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4952201912201586612}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfb3bd059161d0c4d977d50625c874e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Ghost.GhostOrbField
+  orbCount: 4
+  orbitRadius: 1.1
+  orbitSpeed: 0.45
+  orbSize: 0.07
 --- !u!1001 &1045621369427901902
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -66,15 +138,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
       propertyPath: m_LocalScale.x
-      value: 168.12788
+      value: 257.13675
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
       propertyPath: m_LocalScale.y
-      value: 168.12788
+      value: 257.13675
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
       propertyPath: m_LocalScale.z
-      value: 168.12788
+      value: 257.13675
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -119,6 +191,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
       propertyPath: m_Name
       value: Ghoul
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 2885e072a7dc13141b311df7468a5c8b, type: 3}
+      propertyPath: m_Layer
+      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

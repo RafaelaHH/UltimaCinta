@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: linterna
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: linterna
+  visualPrefab: {fileID: 919132149155446097, guid: 9fb38519318bfb34dbb20a2cc727a95d, type: 3}
+  kind: 0

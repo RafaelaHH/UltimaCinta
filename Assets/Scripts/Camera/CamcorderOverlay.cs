@@ -15,7 +15,7 @@ namespace UltimaCinta.CameraSystem
                 GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
                 GUI.color = Color.white;
             }
-            if (resources == null || !resources.IsPowered) { GUI.Label(new Rect(24, 24, 400, 32), "CAMERA OFF  |  Press F to use flashlight"); return; }
+            if (resources == null || !resources.IsPowered) { GUI.Label(new Rect(24, 24, 440, 32), "CAMCORDER NO EQUIPADA · Recógela en la camioneta"); return; }
             GUI.color = Color.white;
             if (Mathf.FloorToInt(Time.unscaledTime * 2f) % 2 == 0)
             {

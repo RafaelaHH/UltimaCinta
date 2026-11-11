@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: keyupper
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: KEY_UPPER
+  visualPrefab: {fileID: 919132149155446097, guid: 1491ffb65f68eb5468488ca054bdf316, type: 3}
+  kind: 0

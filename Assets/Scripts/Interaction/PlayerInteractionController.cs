@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 namespace UltimaCinta.Interaction
 {
@@ -13,6 +14,8 @@ namespace UltimaCinta.Interaction
         private string _prompt;
         private Collider lastTargetCollider;
         private IInteractable lastInteractable;
+        private readonly RaycastHit[] _hitBuffer = new RaycastHit[32];
+        private static readonly IComparer<RaycastHit> HitDistanceComparer = new RaycastHitDistanceComparer();
         private void OnGUI() { if (!string.IsNullOrEmpty(_prompt)) GUI.Label(new Rect(Screen.width * 0.5f - 120f, Screen.height * 0.72f, 240f, 28f), _prompt); }
         public float InteractionDistance => gameConfig != null ? gameConfig.InteractionReachMeters : 0f;
 
@@ -31,11 +34,12 @@ namespace UltimaCinta.Interaction
             Collider targetCollider = null;
             if (gameConfig != null && view != null)
             {
-                var hits = Physics.RaycastAll(view.position, view.forward, gameConfig.InteractionReachMeters,
+                var hitCount = Physics.RaycastNonAlloc(view.position, view.forward, _hitBuffer, gameConfig.InteractionReachMeters,
                     interactionLayers, QueryTriggerInteraction.Collide);
-                Array.Sort(hits, CompareHitDistance);
-                foreach (var hit in hits)
+                Array.Sort(_hitBuffer, 0, hitCount, HitDistanceComparer);
+                for (var index = 0; index < hitCount; index++)
                 {
+                    var hit = _hitBuffer[index];
                     var collider = hit.collider;
                     if (collider == null || collider.transform == transform || collider.transform.IsChildOf(transform)) continue;
                     var candidate = collider.GetComponentInParent<IInteractable>();
@@ -47,6 +51,7 @@ namespace UltimaCinta.Interaction
                     }
                     if (IsStructuralCollider(collider))
                     {
+                        if (IsFloorOrCeiling(collider)) continue;
                         targetCollider = collider;
                         break;
                     }
@@ -70,7 +75,10 @@ namespace UltimaCinta.Interaction
             }
         }
 
-        private static int CompareHitDistance(RaycastHit left, RaycastHit right) => left.distance.CompareTo(right.distance);
+        private sealed class RaycastHitDistanceComparer : IComparer<RaycastHit>
+        {
+            public int Compare(RaycastHit left, RaycastHit right) => left.distance.CompareTo(right.distance);
+        }
 
         private static bool IsStructuralCollider(Collider collider)
         {
@@ -85,6 +93,13 @@ namespace UltimaCinta.Interaction
                    objectName.Contains("pasamanos") || objectName.Contains("step") || objectName.Contains("escalon") ||
                    objectName.Contains("huella") || objectName.Contains("contrahuella") || objectName.Contains("pozo") ||
                    objectName.Contains("stair") || objectName.Contains("escalera");
+        }
+
+        private static bool IsFloorOrCeiling(Collider collider)
+        {
+            var objectName = collider.name.ToLowerInvariant();
+            return objectName.Contains("floor") || objectName.Contains("suelo") || objectName.Contains("ceiling") ||
+                   objectName.Contains("techo") || objectName.Contains("roof");
         }
     }
 }

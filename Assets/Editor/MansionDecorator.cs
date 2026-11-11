@@ -60,8 +60,8 @@ namespace UltimaCinta.Editor
         public const float PhotographWidth = 0.4f;
         public const float PhotographHeight = 0.3f;
         public const float PhotographDepth = 0.04f;
-        public const float MirrorWidth = 0.5f;
-        public const float MirrorHeight = 0.8f;
+        public const float MirrorWidth = 1.0f;
+        public const float MirrorHeight = 1.85f;
         public const float MirrorDepth = 0.05f;
         public const float FridgeWidth = 0.7f;
         public const float FridgeHeight = 1.8f;
@@ -84,6 +84,9 @@ namespace UltimaCinta.Editor
         public const float DoorArcClearance = 0.9f;
         public const float MinimumHallWidth = 0.9f;
         public const float SurfaceItemOffset = 0.03f;
+        public const float DiningSetSurfaceHeightRatio = 0.68f;
+        public const float LampTableSurfaceHeightRatio = 0.52f;
+        public const float SofaSeatSurfaceHeightRatio = 0.42f;
         public const float WallHangingHeight = 1.4f;
         public const float DiningClearance = 0.9f;
         public const float VanLength = 5.5f;
@@ -95,7 +98,7 @@ namespace UltimaCinta.Editor
         public const float ToiletHeight = 0.8f;
         public const float ToiletWidth = 0.45f;
         public const float ToiletDepth = 0.7f;
-        public const float VanWidth = 2.4f;
+        public const float VanWidth = 4.2f;
         public const float ObjectWallGap = 0.03f;
         public const float WindowHeight = 1.0f;
         public const float SwitchHeight = 1.2f;
@@ -160,6 +163,7 @@ namespace UltimaCinta.Editor
             public string Id;
             public string Name;
             public Bounds Bounds;
+            public float TopY;
         }
 
         private sealed class PlacedObject
@@ -484,8 +488,8 @@ namespace UltimaCinta.Editor
             if (roomId == "G-COM")
             {
                 AddModel(placements, models, usedModels, "Mesa de comedor con sillas", MansionPlacementKind.Center);
-                AddModel(placements, models, usedModels, "platoroto", MansionPlacementKind.Surface);
-                AddModel(placements, models, usedModels, "tazarota", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "platoroto", MansionPlacementKind.Surface, 2);
+                AddModel(placements, models, usedModels, "tazarota", MansionPlacementKind.Surface, 2);
                 AddModel(placements, models, usedModels, "lampara", MansionPlacementKind.Surface);
                 AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
                 return;
@@ -547,7 +551,12 @@ namespace UltimaCinta.Editor
                 AddModel(placements, models, usedModels, "Radio", MansionPlacementKind.Surface);
                 AddModel(placements, models, usedModels, "Mecedora", MansionPlacementKind.Corner);
                 AddModel(placements, models, usedModels, "maceta", MansionPlacementKind.Corner);
-                if (roomId == "G-TV") AddModel(placements, models, usedModels, "Muñeca", MansionPlacementKind.Surface);
+                AddModel(placements, models, usedModels, "librogrueso", MansionPlacementKind.Surface);
+                if (roomId == "G-TV")
+                {
+                    AddModel(placements, models, usedModels, "Muñeca", MansionPlacementKind.Surface);
+                    AddModel(placements, models, usedModels, "osito", MansionPlacementKind.Surface);
+                }
                 return;
             }
             if (roomId == "G-EST")
@@ -561,7 +570,7 @@ namespace UltimaCinta.Editor
             if (roomId == "G-BIB")
             {
                 AddModel(placements, models, usedModels, "Estantería con libros", MansionPlacementKind.Furniture, 2);
-                AddModel(placements, models, usedModels, "librogrueso", MansionPlacementKind.Surface, 2);
+                AddModel(placements, models, usedModels, "librogrueso", MansionPlacementKind.Surface, 4);
                 AddModel(placements, models, usedModels, "Mecedora", MansionPlacementKind.Corner);
                 AddModel(placements, models, usedModels, "fotografia", MansionPlacementKind.Wall);
                 return;
@@ -870,7 +879,7 @@ namespace UltimaCinta.Editor
                         else if (!isHanging && !isKey && !candidate.onSurface)
                             desiredCenter.y = MansionGenerator.FloorY(space.Level) + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
                         if (candidate.onSurface)
-                            desiredCenter.y = candidate.surface.Bounds.max.y + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
+                            desiredCenter.y = candidate.surface.TopY + bounds.extents.y + MansionDecorationConstants.SurfaceItemOffset;
                         SetBoundsCenter(instance.transform, bounds, desiredCenter);
                         if (!TryGetRendererBounds(instance, out bounds) || !FitsRoom(bounds, space.Bounds))
                         {
@@ -965,7 +974,14 @@ namespace UltimaCinta.Editor
                 occupied.Add(new PlacedObject { Name = placement.Name, Bounds = finalBounds, SupportId = selectedSurface != null ? selectedSurface.Id : null });
                 if (isFurniture || placement.Kind == MansionPlacementKind.Center)
                 {
-                    var surface = new SupportSurface { Id = placement.Name, Name = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)), Bounds = finalBounds };
+                    var supportName = NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset));
+                    var surface = new SupportSurface
+                    {
+                        Id = placement.Name,
+                        Name = supportName,
+                        Bounds = finalBounds,
+                        TopY = GetSupportTopY(supportName, finalBounds)
+                    };
                     surfaces.Add(surface);
                 }
                 if (placement.Kind == MansionPlacementKind.Hideout || isBed) hideoutCount++;
@@ -1057,6 +1073,7 @@ namespace UltimaCinta.Editor
                 var preferred = new List<SupportSurface>();
                 foreach (var surface in surfaces)
                     if (surface.Name == "mesaconlampara") preferred.Add(surface);
+                AddKeyFrontCandidates(result, instance, preferred, space.Bounds.center);
                 AddSurfaceCandidates(result, instance, preferred);
                 foreach (var surface in surfaces)
                     if (!preferred.Contains(surface)) AddSurfaceCandidates(result, instance, new List<SupportSurface> { surface });
@@ -1069,7 +1086,25 @@ namespace UltimaCinta.Editor
             }
             if (placement.Kind == MansionPlacementKind.Center)
             {
-                result.Add(new PlacementCandidate { center = new Vector3(space.Bounds.center.x, floorY, space.Bounds.center.y) });
+                var center = new Vector3(space.Bounds.center.x, floorY, space.Bounds.center.y);
+                result.Add(new PlacementCandidate { center = center });
+                if (NormalizeModelName(Path.GetFileNameWithoutExtension(placement.Asset)) == "mesadecomedorconsillas" &&
+                    TryGetRendererBounds(instance, out var diningSet))
+                {
+                    var xOffset = Mathf.Max(diningSet.extents.x + MansionDecorationConstants.DiningClearance,
+                        space.Bounds.width * 0.25f);
+                    var zOffset = Mathf.Max(diningSet.extents.z + MansionDecorationConstants.DiningClearance,
+                        space.Bounds.height * 0.25f);
+                    result.Add(new PlacementCandidate { center = center + Vector3.right * xOffset });
+                    result.Add(new PlacementCandidate { center = center - Vector3.right * xOffset });
+                    result.Add(new PlacementCandidate { center = center + Vector3.forward * zOffset });
+                    result.Add(new PlacementCandidate { center = center - Vector3.forward * zOffset });
+                    result.Add(new PlacementCandidate { center = center + new Vector3(xOffset, 0f, zOffset) });
+                    result.Add(new PlacementCandidate { center = center + new Vector3(xOffset, 0f, -zOffset) });
+                    result.Add(new PlacementCandidate { center = center + new Vector3(-xOffset, 0f, zOffset) });
+                    result.Add(new PlacementCandidate { center = center + new Vector3(-xOffset, 0f, -zOffset) });
+                    result.Add(new PlacementCandidate { center = center, yaw = 90f });
+                }
                 return result;
             }
             if (placement.Kind == MansionPlacementKind.RitualFloor)
@@ -1124,6 +1159,7 @@ namespace UltimaCinta.Editor
             for (var index = surfaces.Count - 1; index >= 0; index--)
             {
                 var surface = surfaces[index];
+                if (!CanSupportProps(surface.Name)) continue;
                 var minX = surface.Bounds.min.x + objectBounds.extents.x;
                 var maxX = surface.Bounds.max.x - objectBounds.extents.x;
                 var minZ = surface.Bounds.min.z + objectBounds.extents.z;
@@ -1132,10 +1168,32 @@ namespace UltimaCinta.Editor
                 for (var z = minZ; z <= maxZ + MansionGeneratorConstants.GridTolerance; z += 0.1f)
                     result.Add(new PlacementCandidate
                     {
-                        center = new Vector3(x, surface.Bounds.max.y, z),
+                        center = new Vector3(x, surface.TopY, z),
                         onSurface = true,
                         surface = surface
                     });
+            }
+        }
+
+        private static void AddKeyFrontCandidates(List<PlacementCandidate> result, GameObject instance,
+            List<SupportSurface> surfaces, Vector3 roomCenter)
+        {
+            if (!TryGetRendererBounds(instance, out var keyBounds)) return;
+            foreach (var surface in surfaces)
+            {
+                var towardRoom = new Vector3(roomCenter.x - surface.Bounds.center.x, 0f,
+                    roomCenter.z - surface.Bounds.center.z).normalized;
+                if (towardRoom.sqrMagnitude < 0.01f) towardRoom = Vector3.forward;
+                var availableInset = Mathf.Min(surface.Bounds.extents.x - keyBounds.extents.x - 0.05f,
+                    surface.Bounds.extents.z - keyBounds.extents.z - 0.05f);
+                var inset = Mathf.Max(0f, Mathf.Min(0.45f, availableInset));
+                var center = surface.Bounds.center + towardRoom * Mathf.Max(0f, inset);
+                result.Add(new PlacementCandidate
+                {
+                    center = new Vector3(center.x, surface.TopY, center.z),
+                    onSurface = true,
+                    surface = surface
+                });
             }
         }
 
@@ -1395,7 +1453,22 @@ namespace UltimaCinta.Editor
         private static bool FitsSurface(Bounds bounds, SupportSurface surface) =>
             bounds.min.x >= surface.Bounds.min.x && bounds.max.x <= surface.Bounds.max.x &&
             bounds.min.z >= surface.Bounds.min.z && bounds.max.z <= surface.Bounds.max.z &&
-            bounds.min.y >= surface.Bounds.max.y - MansionDecorationConstants.SurfaceItemOffset;
+            bounds.min.y >= surface.TopY - MansionDecorationConstants.SurfaceItemOffset;
+
+        private static bool CanSupportProps(string modelName) => modelName == "mesadecomedorconsillas" ||
+            modelName == "mesaconlampara" || modelName == "mesilladenoche" || modelName == "estanteriaconlibros" ||
+            modelName == "cama" || modelName == "cunadebebe" || modelName == "sofa" || modelName == "cocinaagas";
+
+        private static float GetSupportTopY(string modelName, Bounds bounds)
+        {
+            if (modelName == "mesadecomedorconsillas")
+                return bounds.min.y + bounds.size.y * MansionDecorationConstants.DiningSetSurfaceHeightRatio;
+            if (modelName == "mesaconlampara")
+                return bounds.min.y + bounds.size.y * MansionDecorationConstants.LampTableSurfaceHeightRatio;
+            if (modelName == "sofa")
+                return bounds.min.y + bounds.size.y * MansionDecorationConstants.SofaSeatSurfaceHeightRatio;
+            return bounds.max.y;
+        }
 
         private static string FindSurfaceOverlap(Bounds bounds, List<PlacedObject> occupied, string supportId)
         {
@@ -1735,12 +1808,21 @@ namespace UltimaCinta.Editor
         {
             var gearRoot = new GameObject("Camioneta_Equipo").transform;
             gearRoot.SetParent(decorationRoot, false);
+            gearRoot.gameObject.AddComponent<UltimaCinta.Interaction.VanSupplyInteractable>();
+            var vanTrigger = gearRoot.gameObject.AddComponent<BoxCollider>();
+            vanTrigger.isTrigger = true;
+            vanTrigger.center = gearRoot.InverseTransformPoint(vehicleBounds.center);
+            var vanScale = gearRoot.lossyScale;
+            vanTrigger.size = new Vector3(
+                vehicleBounds.size.x / Mathf.Max(0.001f, Mathf.Abs(vanScale.x)),
+                vehicleBounds.size.y / Mathf.Max(0.001f, Mathf.Abs(vanScale.y)),
+                vehicleBounds.size.z / Mathf.Max(0.001f, Mathf.Abs(vanScale.z)));
             var equipment = new List<(string Stem, int Count, bool Pickup)>
             {
                 ("linterna", 1, true), ("medidoremf", 1, true), ("termometro", 1, true), ("cinta", 1, true),
                 ("bateria", 2, true), ("diario", 1, true), ("librodeescritura", 1, true), ("velablanca", 2, true),
                 ("ajo", 1, true), ("amuleto", 1, true), ("aguabendita", 1, true), ("estaca", 1, true),
-                ("incienso", 1, true), ("botelladeagua", 1, true), ("camcorder", 1, false)
+                ("incienso", 1, true), ("botelladeagua", 1, true), ("camcorder", 1, true)
             };
             var slot = 0;
             var occupied = new List<PlacedObject>();

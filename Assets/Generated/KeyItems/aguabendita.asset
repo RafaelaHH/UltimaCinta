@@ -13,3 +13,5 @@ MonoBehaviour:
   m_Name: aguabendita
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.InventoryItem
   displayName: aguabendita
+  visualPrefab: {fileID: 919132149155446097, guid: 005e494d414c7e040ac26518861a306a, type: 3}
+  kind: 0
