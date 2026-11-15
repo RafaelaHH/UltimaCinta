@@ -25,6 +25,7 @@ namespace UltimaCinta.Ghost
         private float _playerScanTimer;
         private float _behaviorTickTimer;
         private float _activeHuntDuration;
+        private float _huntDurationMultiplier = 1f;
         private float _sessionTimer;
         private float _restDuration;
         private Light[] _lights = Array.Empty<Light>();
@@ -123,7 +124,8 @@ namespace UltimaCinta.Ghost
             ChangeState(GhostState.Hunting);
             _hasHunted = true;
             _stateTimer = 0f;
-            _activeHuntDuration = UnityEngine.Random.Range(_config.GhostHuntDurationMinimumSeconds, _config.GhostHuntDurationMaximumSeconds);
+            _activeHuntDuration = UnityEngine.Random.Range(_config.GhostHuntDurationMinimumSeconds, _config.GhostHuntDurationMaximumSeconds) * _huntDurationMultiplier;
+            _huntDurationMultiplier = 1f;
             Debug.Log($"[Fase 3] Cacería iniciada por {_type.DisplayName}; duración={_activeHuntDuration:0.0}s; agresividad={_aggression:0.00}.", this);
             for (var index = 0; index < _lights.Length; index++)
             {
@@ -131,6 +133,28 @@ namespace UltimaCinta.Ghost
                 if (_lights[index] != null) _lights[index].enabled = false;
             }
             ProduceEvidence(GhostEvidence.EmfLevelFive);
+        }
+
+        public void TriggerRitualHunt(float durationMultiplier, float speedMultiplier)
+        {
+            if (!_isInitialized) return;
+            if (State == GhostState.Hunting)
+            {
+                RestoreLights();
+                ChangeState(GhostState.Wandering);
+            }
+            for (var index = 0; index < _lights.Length; index++)
+                if (_lights[index] != null) _lights[index].enabled = false;
+            _huntCooldown = 0f;
+            _huntDurationMultiplier = Mathf.Max(0.1f, durationMultiplier);
+            if (navigation != null && _type != null) navigation.speed = _type.MovementSpeed * _config.GhostMovementSpeedMultiplier * Mathf.Max(0.1f, speedMultiplier);
+            TriggerHunt();
+        }
+
+        public void Enrage(float speedMultiplier)
+        {
+            if (navigation != null && _type != null)
+                navigation.speed = _type.MovementSpeed * _config.GhostMovementSpeedMultiplier * Mathf.Max(1f, speedMultiplier);
         }
 
         private void UpdateWandering()

@@ -14,6 +14,8 @@ namespace UltimaCinta.Interaction
         private Quaternion _closedRotation;
         public string Prompt => _open ? "E — close door" : !_unlocked ? $"E — unlock with {keyId}" : "E — open door";
         public void ForceSlamFromGhost() { if (_unlocked) _open = false; }
+        public void UnlockForAct() { _unlocked = true; }
+        public string RequiredKey => keyId;
         private void Awake() { if (hinge == null) hinge = transform; _closedRotation = hinge.localRotation; _unlocked = keyId == "NONE"; }
         private void Update()
         {

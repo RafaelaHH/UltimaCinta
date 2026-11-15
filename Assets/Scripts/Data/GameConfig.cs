@@ -8,6 +8,17 @@ namespace UltimaCinta.Data
         [SerializeField, Min(0f)] private float realNightDurationMinutes;
         [SerializeField, Min(0f)] private float gameNightDurationHours;
         [SerializeField, Min(0f)] private float gameMinutesPerRealMinute = 2.7f;
+        [SerializeField, Range(0f, 23.99f)] private float nightStartHour = 22f;
+        [SerializeField, Range(0f, 23.99f)] private float groundFloorStartHour = 22.5f;
+        [SerializeField, Range(0f, 23.99f)] private float upperFloorUnlockHour = 0.5f;
+        [SerializeField, Range(0f, 23.99f)] private float basementUnlockHour = 3f;
+        [SerializeField, Range(0f, 23.99f)] private float ritualStartHour = 4f;
+        [SerializeField, Min(1f)] private float ritualWaveDurationSeconds = 30f;
+        [SerializeField, Min(0f)] private float ritualWaveHuntDurationMultiplier = 0.5f;
+        [SerializeField, Min(0f)] private float ritualWaveSpeedMultiplier = 0.75f;
+        [SerializeField, Min(0f)] private float ritualFailureSpeedMultiplier = 1.5f;
+        [SerializeField, Min(0f)] private float ritualCandleLightRange = 1.8f;
+        [SerializeField, Min(0f)] private float ritualCandleLightIntensity = 0.75f;
         [Header("Camera resources")]
         [SerializeField, Min(0f)] private float batteryDurationMinutes;
         [SerializeField, Min(0f)] private float nightVisionBatteryDurationMinutes;
@@ -102,6 +113,17 @@ namespace UltimaCinta.Data
         public float RealNightDurationMinutes => realNightDurationMinutes;
         public float GameNightDurationHours => gameNightDurationHours;
         public float GameMinutesPerRealMinute => gameMinutesPerRealMinute;
+        public float NightStartHour => nightStartHour;
+        public float GroundFloorStartHour => groundFloorStartHour;
+        public float UpperFloorUnlockHour => upperFloorUnlockHour;
+        public float BasementUnlockHour => basementUnlockHour;
+        public float RitualStartHour => ritualStartHour;
+        public float RitualWaveDurationSeconds => ritualWaveDurationSeconds;
+        public float RitualWaveHuntDurationMultiplier => ritualWaveHuntDurationMultiplier;
+        public float RitualWaveSpeedMultiplier => ritualWaveSpeedMultiplier;
+        public float RitualFailureSpeedMultiplier => ritualFailureSpeedMultiplier;
+        public float RitualCandleLightRange => ritualCandleLightRange;
+        public float RitualCandleLightIntensity => ritualCandleLightIntensity;
         public float BatteryDurationMinutes => batteryDurationMinutes;
         public float NightVisionBatteryDurationMinutes => nightVisionBatteryDurationMinutes;
         public float TapeDurationMinutes => tapeDurationMinutes;

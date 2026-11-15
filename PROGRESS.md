@@ -73,14 +73,16 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 4 — Reloj y ritual (días 15–20)
 
-- [ ] Reloj de la noche (22:00–06:00) configurable desde GameConfig.
-- [ ] Cambio de actos según la hora, con desbloqueo de áreas.
-- [ ] Objetos de ritual (3 por tipo de fantasma) colocados al azar en puntos válidos.
-- [ ] Sala del ritual con el círculo: colocar objetos, encender velas.
-- [ ] Ritual en 3 oleadas con cacerías cada vez más fuertes.
-- [ ] Si el diario fue correcto: expulsión y victoria. Si no: el ritual falla y el fantasma se enfurece.
-- [ ] Pantallas de victoria, derrota por amanecer y derrota por muerte total.
-- [ ] Prueba: una partida completa solo, de principio a fin, con el reloj acelerado.
+> Implementado y compilado en Unity 6. `Mansion_Generated` quedó configurada con 31 puntos válidos para objetos rituales y `PhaseFourTest` ofrece una noche acelerada de 5 minutos. La partida individual llegó desde el inicio hasta las 06:00 y mostró `DERROTA - AMANECIO`. No se recorrió manualmente el ritual hasta victoria/fallo ni se provocó la muerte total; esas ramas están implementadas, pero su resultado queda pendiente de prueba interactiva.
+
+- [x] Reloj de la noche (22:00–06:00) configurable desde GameConfig.
+- [x] Cambio de actos según la hora, con desbloqueo de áreas.
+- [x] Objetos de ritual (3 por tipo de fantasma) colocados al azar en puntos válidos.
+- [x] Sala del ritual con el círculo: colocar objetos, encender velas.
+- [x] Ritual en 3 oleadas con cacerías cada vez más fuertes.
+- [x] Si el diario fue correcto: expulsión y victoria. Si no: el ritual falla y el fantasma se enfurece.
+- [x] Pantallas de victoria, derrota por amanecer y derrota por muerte total.
+- [x] Prueba: una partida completa solo, de principio a fin, con el reloj acelerado (terminó en derrota por amanecer; ramas de ritual y muerte total pendientes de validación interactiva).
 
 ## Fase 5 — Multijugador (días 18–25)
 

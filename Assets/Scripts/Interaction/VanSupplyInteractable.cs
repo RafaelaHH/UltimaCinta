@@ -19,6 +19,21 @@ namespace UltimaCinta.Interaction
 
         public string Prompt => _occupants.Count == 0 ? "E — abrir acceso de la camioneta" : "E — entrar / salir de la camioneta";
 
+        public bool TryGetApproachPose(out Vector3 position, out Quaternion rotation)
+        {
+            var trigger = _vanTrigger != null ? _vanTrigger : GetComponent<BoxCollider>();
+            if (trigger == null)
+            {
+                position = transform.position;
+                rotation = transform.rotation;
+                return false;
+            }
+
+            position = VanCabinBuilder.EntryPosition(trigger);
+            rotation = VanCabinBuilder.EntryRotation(trigger);
+            return true;
+        }
+
         private void Awake()
         {
             _vanTrigger = GetComponent<BoxCollider>();

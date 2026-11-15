@@ -279,7 +279,7 @@ namespace UltimaCinta.Interaction
                     switches.Add($"{instance.name}->NULL");
                     continue;
                 }
-                switches.Add($"{instance.name}->{HierarchyPath(controlled.transform)}, tipo={controlled.type}, bake={controlled.lightmapBakeType}, enabled={controlled.enabled}");
+                switches.Add($"{instance.name}->{HierarchyPath(controlled.transform)}, tipo={controlled.type}, bake={controlled.bakingOutput.lightmapBakeType}, enabled={controlled.enabled}");
             }
             var hideoutCount = objects.FindAll(item => item.GetComponent<HideoutInteractable>() != null).Count;
             Debug.Log($"[DIAG] interruptores={switches.Count}: {string.Join("; ", switches)}; escondites listos={hideoutCount}.");

@@ -15,6 +15,17 @@ MonoBehaviour:
   realNightDurationMinutes: 180
   gameNightDurationHours: 8
   gameMinutesPerRealMinute: 2.7
+  nightStartHour: 22
+  groundFloorStartHour: 22.5
+  upperFloorUnlockHour: 0.5
+  basementUnlockHour: 3
+  ritualStartHour: 4
+  ritualWaveDurationSeconds: 30
+  ritualWaveHuntDurationMultiplier: 0.5
+  ritualWaveSpeedMultiplier: 0.75
+  ritualFailureSpeedMultiplier: 1.5
+  ritualCandleLightRange: 1.8
+  ritualCandleLightIntensity: 0.75
   batteryDurationMinutes: 35
   nightVisionBatteryDurationMinutes: 12
   tapeDurationMinutes: 45

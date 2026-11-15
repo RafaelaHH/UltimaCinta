@@ -60,8 +60,13 @@ namespace UltimaCinta.Interaction
 
         public void EnsureRealtimeLight()
         {
-            if (controlledLight != null && controlledLight.lightmapBakeType != LightmapBakeType.Realtime)
-                controlledLight.lightmapBakeType = LightmapBakeType.Realtime;
+            if (controlledLight == null) return;
+
+            var bakingOutput = controlledLight.bakingOutput;
+            if (bakingOutput.lightmapBakeType == LightmapBakeType.Realtime) return;
+
+            bakingOutput.lightmapBakeType = LightmapBakeType.Realtime;
+            controlledLight.bakingOutput = bakingOutput;
         }
 
         public bool Interact(GameObject interactor)
