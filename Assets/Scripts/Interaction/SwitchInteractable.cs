@@ -1,10 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using Fusion;
 using UnityEngine;
 
 namespace UltimaCinta.Interaction
 {
-    public sealed class SwitchInteractable : MonoBehaviour, IInteractable
+    public sealed class SwitchInteractable : NetworkBehaviour, IInteractable
     {
         [SerializeField] private Light controlledLight;
         [SerializeField] private GameObject controlledObject;
@@ -19,6 +20,9 @@ namespace UltimaCinta.Interaction
         private bool _on = true;
         private bool yaFallo;
         private bool hasPower = true;
+        private bool _networkStarted;
+        [Networked] private NetworkBool NetworkOn { get; set; }
+        [Networked] private NetworkBool NetworkFailed { get; set; }
 
         public string Prompt => "E — toggle switch";
         public Light ControlledLight => controlledLight;
@@ -30,6 +34,29 @@ namespace UltimaCinta.Interaction
             InitializeFixtureEmission();
             if (powerController != null) powerController.RegisterSwitch(this);
             else SetLightState(true);
+        }
+
+        public override void Spawned()
+        {
+            _networkStarted = true;
+            if (HasStateAuthority)
+            {
+                NetworkOn = _on;
+                NetworkFailed = yaFallo;
+            }
+            ApplyNetworkState();
+        }
+
+        public override void Render() { if (_networkStarted) ApplyNetworkState(); }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_Interact() { PerformInteraction(); }
+
+        private void ApplyNetworkState()
+        {
+            _on = NetworkOn;
+            yaFallo = NetworkFailed;
+            SetLightState(_on);
         }
 
         public void SetControlledFixture(GameObject fixture)
@@ -70,6 +97,16 @@ namespace UltimaCinta.Interaction
         }
 
         public bool Interact(GameObject interactor)
+        {
+            if (_networkStarted && !HasStateAuthority)
+            {
+                RPC_Interact();
+                return true;
+            }
+            return PerformInteraction();
+        }
+
+        private bool PerformInteraction()
         {
             var firstFailure = !yaFallo;
             if (controlledLight == null)
@@ -127,6 +164,11 @@ namespace UltimaCinta.Interaction
 
         private void SetLightState(bool enabled)
         {
+            if (_networkStarted && HasStateAuthority)
+            {
+                NetworkOn = enabled;
+                NetworkFailed = yaFallo;
+            }
             var poweredState = enabled && hasPower;
             if (controlledLight != null) controlledLight.enabled = poweredState;
             if (controlledObject != null) controlledObject.SetActive(poweredState);

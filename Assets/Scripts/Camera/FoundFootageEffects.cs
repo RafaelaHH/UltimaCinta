@@ -13,19 +13,41 @@ namespace UltimaCinta.CameraSystem
         [SerializeField] private UltimaCinta.Data.GameConfig gameConfig;
         private ColorAdjustments _color;
         private DepthOfField _depthOfField;
+        private FilmGrain _filmGrain;
+        private ChromaticAberration _chromaticAberration;
+        private LensDistortion _lensDistortion;
         private SanityController _sanity;
+        private GhostCameraInterference _interference;
         private int _baseCullingMask;
         private int _ghostLayer;
         private void Awake()
         {
             if (volume == null) volume = GetComponent<Volume>();
+            if (volume == null) volume = gameObject.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.weight = 1f;
             if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
             if (resources == null) resources = GetComponent<CameraResourceController>();
             _sanity = GetComponent<SanityController>();
-            if (volume != null && volume.profile != null)
+            _interference = GetComponent<GhostCameraInterference>();
+            if (volume != null)
             {
-                volume.profile.TryGet(out _color);
-                volume.profile.TryGet(out _depthOfField);
+                var runtimeProfile = volume.profile;
+                if (runtimeProfile == null)
+                {
+                    runtimeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+                    runtimeProfile.hideFlags = HideFlags.HideAndDontSave;
+                    volume.profile = runtimeProfile;
+                }
+                if (runtimeProfile != null)
+                {
+                    if (!runtimeProfile.TryGet(out _color)) _color = runtimeProfile.Add<ColorAdjustments>(true);
+                    if (!runtimeProfile.TryGet(out _depthOfField)) _depthOfField = runtimeProfile.Add<DepthOfField>(true);
+                    if (!runtimeProfile.TryGet(out _filmGrain)) _filmGrain = runtimeProfile.Add<FilmGrain>(true);
+                    if (!runtimeProfile.TryGet(out _chromaticAberration)) _chromaticAberration = runtimeProfile.Add<ChromaticAberration>(true);
+                    if (!runtimeProfile.TryGet(out _lensDistortion)) _lensDistortion = runtimeProfile.Add<LensDistortion>(true);
+                    _color.colorFilter.overrideState = true;
+                }
             }
             if (_depthOfField != null)
             {
@@ -41,6 +63,7 @@ namespace UltimaCinta.CameraSystem
             if (playerCamera != null) _baseCullingMask = _ghostLayer >= 0 ? playerCamera.cullingMask & ~(1 << _ghostLayer) : playerCamera.cullingMask;
             if (resources != null) resources.ResourcesChanged += RefreshCameraState;
             RefreshCameraState();
+            RefreshInterferenceEffects();
         }
         private void Start()
         {
@@ -77,6 +100,33 @@ namespace UltimaCinta.CameraSystem
             _depthOfField.gaussianStart.value = Mathf.Lerp(config.SanityBlurFarEndMeters, config.SanityBlurFarStartMeters, blur);
             _depthOfField.gaussianEnd.value = Mathf.Lerp(config.SanityBlurFarEndMeters * 2f, config.SanityBlurFarEndMeters, blur);
             _depthOfField.gaussianMaxRadius.value = Mathf.Lerp(0.5f, config.SanityBlurMaximumRadius, blur);
+        }
+
+        private void Update() => RefreshInterferenceEffects();
+
+        private void RefreshInterferenceEffects()
+        {
+            var config = gameConfig != null ? gameConfig : Resources.Load<UltimaCinta.Data.GameConfig>("GameConfig");
+            var amount = _interference != null && (resources == null || resources.IsPowered)
+                ? Mathf.Clamp01(_interference.InterferenceAmount) : 0f;
+            var tuning = config != null ? config.Audio : null;
+            if (tuning == null) amount = 0f;
+
+            if (_filmGrain != null)
+            {
+                _filmGrain.active = amount > 0.001f;
+                _filmGrain.intensity.value = amount * (tuning != null ? tuning.MaximumFilmGrain : 0f);
+            }
+            if (_chromaticAberration != null)
+            {
+                _chromaticAberration.active = amount > 0.001f;
+                _chromaticAberration.intensity.value = amount * (tuning != null ? tuning.MaximumChromaticAberration : 0f);
+            }
+            if (_lensDistortion != null)
+            {
+                _lensDistortion.active = amount > 0.001f;
+                _lensDistortion.intensity.value = amount * (tuning != null ? tuning.MaximumLensDistortion : 0f);
+            }
         }
     }
 }

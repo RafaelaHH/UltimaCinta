@@ -11,6 +11,7 @@ namespace UltimaCinta.CameraSystem
         [SerializeField] private Light flashlight;
         private UltimaCinta.Player.PlayerInventory _inventory;
         private bool _available;
+        public bool IsOn => flashlight != null && flashlight.enabled;
         private void Awake()
         {
             if (flashlight == null) flashlight = GetComponentInChildren<Light>();

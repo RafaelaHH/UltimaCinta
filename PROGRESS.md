@@ -73,7 +73,7 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 4 — Reloj y ritual (días 15–20)
 
-> Implementado y compilado en Unity 6. `Mansion_Generated` quedó configurada con 31 puntos válidos para objetos rituales y `PhaseFourTest` ofrece una noche acelerada de 5 minutos. La partida individual llegó desde el inicio hasta las 06:00 y mostró `DERROTA - AMANECIO`. No se recorrió manualmente el ritual hasta victoria/fallo ni se provocó la muerte total; esas ramas están implementadas, pero su resultado queda pendiente de prueba interactiva.
+> Implementado y compilado en Unity 6. `Mansion_Generated` quedó configurada con 31 puntos válidos para objetos rituales y `PhaseFourTest` ofrece una noche acelerada de 5 minutos. La partida individual llegó desde el inicio hasta las 06:00 y mostró `DERROTA - AMANECIO`. La prueba automatizada `Tools/UltimaCinta/Verificar rituales de los cuatro fantasmas` recorrió 8 casos con los controladores y objetos reales: victoria y fallo por diario incorrecto para cada fantasma. La interacción manual con el ritual dentro de una sesión completa aún no se ha probado.
 
 - [x] Reloj de la noche (22:00–06:00) configurable desde GameConfig.
 - [x] Cambio de actos según la hora, con desbloqueo de áreas.
@@ -86,14 +86,16 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 5 — Multijugador (días 18–25)
 
-- [ ] Pantalla de lobby: crear sala con un nombre y unirse por nombre de sala.
-- [ ] Conexión con Photon Fusion 2 en Shared Mode; spawn de hasta 4 jugadores.
-- [ ] Sincronizar jugadores: posición, animación, linterna, estado de cámara.
-- [ ] Hacer que la computadora del creador de la sala calcule la IA del fantasma y el reloj (los demás reciben el resultado), y pasar ese cálculo a otro jugador si se desconecta.
-- [ ] Sincronizar puertas, luces, objetos recogidos, evidencias y diario.
-- [ ] Capa fantasma local por jugador según su cámara.
-- [ ] Manejo de desconexiones: el fantasma sigue y el jugador queda como muerto.
-- [ ] Bloquear el diario para que cualquiera pueda marcar pero se actualice para todos.
+> Build Windows y compilación Unity 6 correctas. Dos instancias en la misma PC se unieron a Photon (`Player:1` y `Player:2`), cargaron la mansión y sincronizaron en vivo soltar/mostrar/recoger un objeto. Al cerrar el creador con fantasma activo, el invitado mantuvo la sesión y registró el traspaso de autoridad del reloj, del estado global del fantasma y de la IA. Siguen pendientes la prueba en dos PCs distintas y la comprobación manual de movimiento/animación, cámara/linterna, puertas/luces, diario/evidencias y desconexión/muerte antes de cerrar la fase.
+
+- [x] Pantalla de lobby: crear sala con un nombre y unirse por nombre de sala.
+- [x] Conexión con Photon Fusion 2 en Shared Mode; spawn configurado para hasta 4 jugadores.
+- [x] Sincronizar jugadores: posición, estado de movimiento, linterna y estado de cámara.
+- [x] La autoridad del creador calcula la IA del fantasma y el reloj; el cálculo se transfiere si se desconecta.
+- [x] Sincronizar puertas, luces, objetos recogidos, evidencias y diario.
+- [x] Capa fantasma local por jugador según el estado de su cámara.
+- [x] Manejo de desconexiones: contar al jugador como muerto y mantener el fantasma activo.
+- [x] Cualquiera puede marcar evidencias y elegir sospechoso; el diario refleja el estado compartido.
 - [ ] Prueba: dos instancias en la misma PC, luego dos PCs distintas con Photon.
 
 ## Fase 6 — Audio, pulido y balance (días 24–29)

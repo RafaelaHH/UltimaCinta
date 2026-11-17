@@ -23,11 +23,23 @@ namespace UltimaCinta.Ghost
         private UltimaCinta.Player.FirstPersonLookController _look;
         private UltimaCinta.Interaction.PlayerInteractionController _interaction;
         private UltimaCinta.Player.PlayerInventory _inventory;
-        public GhostType SelectedGhost { get; private set; }
+        private GhostWorldController _sharedWorld;
+        private GhostType _localSelectedGhost;
+        public GhostType SelectedGhost
+        {
+            get => _sharedWorld != null ? _sharedWorld.SelectedGhost : _localSelectedGhost;
+            private set
+            {
+                if (_sharedWorld != null) _sharedWorld.SelectGhost(value);
+                else _localSelectedGhost = value;
+            }
+        }
         public IReadOnlyCollection<GhostEvidence> MarkedEvidence => _marked;
 
         private void Update()
         {
+            if (_sharedWorld == null) _sharedWorld = FindAnyObjectByType<GhostWorldController>();
+            SyncSharedJournal();
             if (UnityEngine.InputSystem.Keyboard.current?.jKey.wasPressedThisFrame != true) return;
             if (_open) SetOpen(false);
             else if (HasJournal()) SetOpen(true);
@@ -40,9 +52,25 @@ namespace UltimaCinta.Ghost
             _look = GetComponent<UltimaCinta.Player.FirstPersonLookController>();
             _interaction = GetComponent<UltimaCinta.Interaction.PlayerInteractionController>();
             _inventory = GetComponent<UltimaCinta.Player.PlayerInventory>();
+            _sharedWorld = FindAnyObjectByType<GhostWorldController>();
         }
 
-        public void MarkEvidence(GhostEvidence evidence) => _marked.Add(evidence);
+        public void MarkEvidence(GhostEvidence evidence)
+        {
+            if (_sharedWorld != null) _sharedWorld.MarkEvidence(evidence);
+            else _marked.Add(evidence);
+        }
+
+        private void SyncSharedJournal()
+        {
+            if (_sharedWorld == null) return;
+            var mask = _sharedWorld.MarkedEvidenceMask;
+            foreach (var evidence in AllEvidence)
+            {
+                if ((mask & (1 << (int)evidence)) != 0) _marked.Add(evidence);
+                else _marked.Remove(evidence);
+            }
+        }
 
         private void OnGUI()
         {

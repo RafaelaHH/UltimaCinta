@@ -16,5 +16,8 @@ EditorBuildSettings:
     guid: e9c682855e5a31b48af06c0fc6fba87b
   - enabled: 1
     path: Assets/Scenes/PhaseOneTest.unity
-    guid: 84a849a78e567854e9863fa5bbfab096  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+    guid: 84a849a78e567854e9863fa5bbfab096
+  - enabled: 1
+    path: Assets/Scenes/Mansion_Generated.unity
+    guid: b39fb12839577bc43a42a0e9689358c9
+  m_configObjects: {}

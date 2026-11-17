@@ -8,6 +8,10 @@ namespace UltimaCinta.Interaction
         {
             if (item == null || dropper == null) return false;
 
+            var networkAvatar = dropper.GetComponent<UltimaCinta.Player.NetworkPlayerAvatar>();
+            if (networkAvatar != null && networkAvatar.IsNetworkStarted)
+                return NetworkDroppedItem.TrySpawn(item, dropper, networkAvatar.ActiveRunner);
+
             var dropped = new GameObject();
             dropped.name = $"Objeto soltado · {item.DisplayName}";
             dropped.transform.position = dropper.position + dropper.forward * 0.8f + Vector3.up * 0.25f;

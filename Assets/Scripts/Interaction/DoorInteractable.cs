@@ -1,8 +1,11 @@
 using UnityEngine;
+using Fusion;
+using UltimaCinta.Audio;
+using UltimaCinta.UI;
 namespace UltimaCinta.Interaction
 {
     [DisallowMultipleComponent]
-    public sealed class DoorInteractable : MonoBehaviour, IInteractable
+    public sealed class DoorInteractable : NetworkBehaviour, IInteractable
     {
         [SerializeField] private UltimaCinta.Data.GameConfig gameConfig;
         [SerializeField] private Transform hinge;
@@ -12,17 +15,99 @@ namespace UltimaCinta.Interaction
         private bool _open;
         private bool _unlocked;
         private Quaternion _closedRotation;
+        private bool _networkStarted;
+        private bool _stateInitialized;
+        private bool _renderedOpen;
+        private AudioSource _audioSource;
+        [Networked] private NetworkBool NetworkOpen { get; set; }
+        [Networked] private NetworkBool NetworkUnlocked { get; set; }
         public string Prompt => _open ? "E — close door" : !_unlocked ? $"E — unlock with {keyId}" : "E — open door";
-        public void ForceSlamFromGhost() { if (_unlocked) _open = false; }
-        public void UnlockForAct() { _unlocked = true; }
+        public void ForceSlamFromGhost()
+        {
+            if (!_unlocked) return;
+            if (!_networkStarted) { _open = false; return; }
+            if (HasStateAuthority) NetworkOpen = false;
+            else RPC_ForceClosed();
+        }
+        public void UnlockForAct()
+        {
+            if (!_networkStarted) { _unlocked = true; return; }
+            if (HasStateAuthority) NetworkUnlocked = true;
+            else RPC_Unlock();
+        }
         public string RequiredKey => keyId;
-        private void Awake() { if (hinge == null) hinge = transform; _closedRotation = hinge.localRotation; _unlocked = keyId == "NONE"; }
+        private void Awake()
+        {
+            if (hinge == null) hinge = transform;
+            _closedRotation = hinge.localRotation;
+            _unlocked = keyId == "NONE";
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
+            _audioSource.playOnAwake = false;
+            _audioSource.spatialBlend = 1f;
+            _audioSource.dopplerLevel = 0f;
+            _audioSource.rolloffMode = AudioRolloffMode.Linear;
+        }
+        public override void Spawned()
+        {
+            _networkStarted = true;
+            if (HasStateAuthority)
+            {
+                NetworkOpen = _open;
+                NetworkUnlocked = _unlocked;
+            }
+            ApplyNetworkState();
+            _renderedOpen = _open;
+            _stateInitialized = true;
+        }
+        public override void Render() { if (_networkStarted) ApplyNetworkState(); }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestToggle(NetworkBool unlockWithKey)
+        {
+            if (!NetworkUnlocked && !unlockWithKey) return;
+            NetworkUnlocked = true;
+            NetworkOpen = !NetworkOpen;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_Unlock() { NetworkUnlocked = true; }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_ForceClosed() { if (NetworkUnlocked) NetworkOpen = false; }
+
+        private void ApplyNetworkState()
+        {
+            _open = NetworkOpen;
+            _unlocked = NetworkUnlocked;
+        }
         private void Update()
         {
+            if (!_stateInitialized)
+            {
+                _renderedOpen = _open;
+                _stateInitialized = true;
+            }
+            else if (_renderedOpen != _open)
+            {
+                _renderedOpen = _open;
+                PlayDoorCue();
+            }
+
             if (gameConfig == null) return;
+            _audioSource.minDistance = gameConfig.Audio.DoorMinDistanceMeters;
+            _audioSource.maxDistance = gameConfig.Audio.DoorMaxDistanceMeters;
             var angle = openAngle > 0f ? openAngle : gameConfig.DoorOpenAngle;
             var target = _open ? _closedRotation * Quaternion.Euler(0f, angle * swingSign, 0f) : _closedRotation;
             hinge.localRotation = Quaternion.RotateTowards(hinge.localRotation, target, gameConfig.DoorOpenSpeed * Time.deltaTime);
+        }
+
+        private void PlayDoorCue()
+        {
+            if (gameConfig == null || _audioSource == null) return;
+            _audioSource.PlayOneShot(AudioCueLibrary.Door(_open), gameConfig.Audio.DoorVolume);
+            SubtitleOverlay.ShowAt(transform.position, gameConfig.Audio.DoorMaxDistanceMeters,
+                _open ? "La puerta se abre con un gemido." : "La puerta se cierra de golpe.");
         }
         public bool Interact(GameObject interactor)
         {
@@ -33,8 +118,20 @@ namespace UltimaCinta.Interaction
                 inventory?.ShowMessage($"Se necesita {keyId}");
                 return false;
             }
-            _unlocked = true;
-            _open = !_open;
+            if (_networkStarted)
+            {
+                if (HasStateAuthority)
+                {
+                    NetworkUnlocked = true;
+                    NetworkOpen = !NetworkOpen;
+                }
+                else RPC_RequestToggle(consumesKey);
+            }
+            else
+            {
+                _unlocked = true;
+                _open = !_open;
+            }
             if (consumesKey)
             {
                 var remainingUses = CountLockedDoors(keyId);

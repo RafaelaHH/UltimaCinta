@@ -63,7 +63,9 @@ namespace UltimaCinta.Data
         [SerializeField, Min(0f)] private float ghostHuntStartAggressionMaximum = 0.75f;
         [SerializeField, Min(0f)] private float ghostHuntStartDistance = 18f;
         [SerializeField, Min(0f)] private float ghostScreamerRangeMeters = 4f;
-        [SerializeField, Min(0f)] private float ghostScreamerDurationSeconds = 0.45f;
+        [SerializeField, Min(0f)] private float ghostScreamerDurationSeconds = 0.9f;
+        [SerializeField, Range(0f, 1f)] private float ghostScreamerAudioVolume = 0.9f;
+        [SerializeField, Min(0f)] private float ghostScreamerFovKickDegrees = 18f;
         [SerializeField, Min(0f)] private float ghostInterferenceRange = 16f;
         [SerializeField, Min(0f)] private float ghostHearingRange = 14f;
         [SerializeField, Min(0f)] private float ghostSanityDrainPerSecond = 0.3f;
@@ -110,6 +112,7 @@ namespace UltimaCinta.Data
         [SerializeField, Min(0f)] private float sanityBlurFarEndMeters = 5f;
         [SerializeField, Min(0)] private int sanityPillPickupCount = 4;
         [SerializeField, Min(0)] private int cameraBatteryPickupCount = 4;
+        [SerializeField] private GameAudioConfig audioTuning = new GameAudioConfig();
         public float RealNightDurationMinutes => realNightDurationMinutes;
         public float GameNightDurationHours => gameNightDurationHours;
         public float GameMinutesPerRealMinute => gameMinutesPerRealMinute;
@@ -165,6 +168,8 @@ namespace UltimaCinta.Data
         public float GhostHuntStartDistance => ghostHuntStartDistance;
         public float GhostScreamerRangeMeters => ghostScreamerRangeMeters;
         public float GhostScreamerDurationSeconds => ghostScreamerDurationSeconds;
+        public float GhostScreamerAudioVolume => ghostScreamerAudioVolume;
+        public float GhostScreamerFovKickDegrees => ghostScreamerFovKickDegrees;
         public float GhostInterferenceRange => ghostInterferenceRange;
         public float GhostHearingRange => ghostHearingRange;
         public float GhostSanityDrainPerSecond => ghostSanityDrainPerSecond;
@@ -209,5 +214,6 @@ namespace UltimaCinta.Data
         public float SanityBlurFarEndMeters => sanityBlurFarEndMeters;
         public int SanityPillPickupCount => sanityPillPickupCount;
         public int CameraBatteryPickupCount => cameraBatteryPickupCount;
+        public GameAudioConfig Audio => audioTuning;
     }
 }

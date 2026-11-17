@@ -13,6 +13,7 @@ namespace UltimaCinta.Ghost
         [SerializeField] private GhostBehavior behavior;
         [SerializeField] private InventoryItem[] ritualItems = new InventoryItem[0];
         [SerializeField] private GameObject ghostPrefab;
+        [SerializeField] private UltimaCinta.Data.GhostSoundProfile soundProfile;
 
         public string DisplayName => displayName;
         public float MovementSpeed => movementSpeed;
@@ -20,5 +21,6 @@ namespace UltimaCinta.Ghost
         public GhostBehavior Behavior => behavior;
         public IReadOnlyList<InventoryItem> RitualItems => ritualItems;
         public GameObject GhostPrefab => ghostPrefab;
+        public UltimaCinta.Data.GhostSoundProfile SoundProfile => soundProfile;
     }
 }

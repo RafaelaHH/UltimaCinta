@@ -65,8 +65,10 @@ MonoBehaviour:
   ghostHuntStartAggressionMinimum: 0.25
   ghostHuntStartAggressionMaximum: 0.75
   ghostHuntStartDistance: 18
-  ghostScreamerRangeMeters: 4
-  ghostScreamerDurationSeconds: 0.45
+  ghostScreamerRangeMeters: 6
+  ghostScreamerDurationSeconds: 0.9
+  ghostScreamerAudioVolume: 0.9
+  ghostScreamerFovKickDegrees: 18
   ghostInterferenceRange: 16
   ghostHearingRange: 14
   ghostSanityDrainPerSecond: 0.3

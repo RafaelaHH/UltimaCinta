@@ -1,4 +1,5 @@
 using UltimaCinta.Data;
+using UltimaCinta.UI;
 using UnityEngine;
 
 namespace UltimaCinta.Player
@@ -40,7 +41,8 @@ namespace UltimaCinta.Player
                 return;
             }
 
-            var look = inputReader.LookDelta * gameConfig.LookSensitivity;
+            var look = inputReader.LookDelta * gameConfig.LookSensitivity *
+                GameSettingsStore.LookSensitivity(gameConfig);
             if (_temporaryLookLimit)
             {
                 _temporaryYawOffset = Mathf.Clamp(_temporaryYawOffset + look.x, -_temporaryYawRange, _temporaryYawRange);

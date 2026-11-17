@@ -23,6 +23,11 @@ namespace UltimaCinta.Data
         private bool _ritualActive;
         private bool _ritualFailed;
         private bool _ritualComplete;
+        private bool _isNetworkSession;
+        private bool _networkRequestPending;
+        private int _lastNetworkPlacedItems;
+        private int _lastNetworkLitCandles;
+        private int _visualPlacedItems;
         private float _deathCheckTimer;
         private SanityController[] _players = System.Array.Empty<SanityController>();
         private string _status = "Encuentra los tres objetos rituales y llevalos al sotano.";
@@ -58,6 +63,12 @@ namespace UltimaCinta.Data
         private void Update()
         {
             PrepareItemsWhenGhostChosen();
+            if (ghostWorld != null && ghostWorld.IsNetworkSession)
+            {
+                _isNetworkSession = true;
+                SyncNetworkRitual();
+                return;
+            }
             if (!_ritualActive && !_ritualComplete && _placedItems == 3 && _litCandles == 3 &&
                 nightClock != null && nightClock.Act == NightAct.Ritual)
                 StartRitual();
@@ -83,9 +94,12 @@ namespace UltimaCinta.Data
                 return;
             }
             var available = new List<Transform>(ritualItemPoints);
+            var stableSeed = 17;
+            foreach (var character in type.name) stableSeed = unchecked(stableSeed * 31 + character);
+            var random = new System.Random(stableSeed);
             for (var index = 0; index < type.RitualItems.Count; index++)
             {
-                var pointIndex = Random.Range(0, available.Count);
+                var pointIndex = random.Next(0, available.Count);
                 var point = available[pointIndex];
                 available.RemoveAt(pointIndex);
                 var pickupObject = new GameObject("ObjetoRitual_" + type.RitualItems[index].DisplayName);
@@ -94,6 +108,12 @@ namespace UltimaCinta.Data
                 collider.radius = 0.7f;
                 var pickup = pickupObject.AddComponent<PickupInteractable>();
                 pickup.SetItem(type.RitualItems[index]);
+                if (ghostWorld.IsNetworkSession) pickup.ConfigureNetworkRitualItem(ghostWorld, index);
+                if (ghostWorld.IsRitualItemPicked(index))
+                {
+                    foreach (var renderer in pickupObject.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+                    foreach (var pickupCollider in pickupObject.GetComponentsInChildren<Collider>(true)) pickupCollider.enabled = false;
+                }
             }
         }
         public bool TryPlace(GameObject interactor)
@@ -101,33 +121,44 @@ namespace UltimaCinta.Data
             if (_preparedType == null || interactor == null) return false;
             var inventory = interactor.GetComponent<PlayerInventory>();
             if (inventory == null) return false;
-            if (_placedItems < 3)
+            var placedCount = _isNetworkSession ? ghostWorld.RitualPlacedItems : _placedItems;
+            var candleCount = _isNetworkSession ? ghostWorld.RitualLitCandles : _litCandles;
+            if (_networkRequestPending) return false;
+            if (placedCount < 3)
             {
-                var required = _preparedType.RitualItems[_placedItems];
+                var required = _preparedType.RitualItems[placedCount];
                 if (!inventory.TryRemove(required.DisplayName))
                 {
                     inventory.ShowMessage("Falta " + required.DisplayName + " para el circulo.");
                     return false;
                 }
-                var visualRoot = new GameObject("Ofrenda_" + required.DisplayName);
-                visualRoot.transform.SetParent(ritualCircle, false);
-                visualRoot.transform.localPosition = Vector3.up * 0.12f + Quaternion.Euler(0f, 120f * _placedItems, 0f) * Vector3.forward * 0.65f;
-                ItemVisualFactory.CreateVisual(required, visualRoot.transform, 0.35f);
-                _placedItems++;
-                _status = $"Objetos colocados: {_placedItems}/3";
+                if (_isNetworkSession)
+                {
+                    ghostWorld.RequestRitualItemPlacement();
+                    _networkRequestPending = true;
+                }
+                else
+                {
+                    CreateOffering(placedCount);
+                    _placedItems++;
+                }
+                _status = $"Objetos colocados: {placedCount + 1}/3";
                 inventory.ShowMessage(_status);
                 return true;
             }
-            if (_litCandles < 3)
+            if (candleCount < 3)
             {
-                _litCandles++;
-                if (candlePoints != null && _litCandles <= candlePoints.Length)
+                if (_isNetworkSession)
                 {
-                    var candleLight = candlePoints[_litCandles - 1].GetComponentInChildren<Light>(true);
-                    if (candleLight != null) candleLight.enabled = true;
-                    else CreateCandleLight(candlePoints[_litCandles - 1]);
+                    ghostWorld.RequestRitualCandleLighting();
+                    _networkRequestPending = true;
                 }
-                _status = $"Velas encendidas: {_litCandles}/3";
+                else
+                {
+                    _litCandles++;
+                    SetCandleLit(_litCandles - 1, true);
+                }
+                _status = $"Velas encendidas: {candleCount + 1}/3";
                 inventory.ShowMessage(_status);
                 if (_litCandles == 3) StartRitual();
                 return true;
@@ -145,6 +176,56 @@ namespace UltimaCinta.Data
             light.range = gameConfig.RitualCandleLightRange;
             light.intensity = gameConfig.RitualCandleLightIntensity;
         }
+
+        private void CreateOffering(int index)
+        {
+            if (ritualCircle == null || _preparedType == null || index < 0 || index >= _preparedType.RitualItems.Count) return;
+            var required = _preparedType.RitualItems[index];
+            var visualRoot = new GameObject("Ofrenda_" + required.DisplayName);
+            visualRoot.transform.SetParent(ritualCircle, false);
+            visualRoot.transform.localPosition = Vector3.up * 0.12f + Quaternion.Euler(0f, 120f * index, 0f) * Vector3.forward * 0.65f;
+            ItemVisualFactory.CreateVisual(required, visualRoot.transform, 0.35f);
+        }
+
+        private void SetCandleLit(int index, bool lit)
+        {
+            if (candlePoints == null || index < 0 || index >= candlePoints.Length || candlePoints[index] == null) return;
+            var candleLight = candlePoints[index].Find("LlamaVela")?.GetComponent<Light>();
+            if (candleLight == null) candleLight = candlePoints[index].GetComponentInChildren<Light>(true);
+            if (candleLight == null)
+            {
+                CreateCandleLight(candlePoints[index]);
+                candleLight = candlePoints[index].Find("LlamaVela")?.GetComponent<Light>();
+            }
+            if (candleLight != null) candleLight.enabled = lit;
+        }
+
+        private void SyncNetworkRitual()
+        {
+            var placed = ghostWorld.RitualPlacedItems;
+            var candles = ghostWorld.RitualLitCandles;
+            if (placed > _lastNetworkPlacedItems || candles > _lastNetworkLitCandles) _networkRequestPending = false;
+            while (_visualPlacedItems < placed)
+            {
+                CreateOffering(_visualPlacedItems);
+                _visualPlacedItems++;
+            }
+            for (var index = 0; index < 3; index++) SetCandleLit(index, index < candles);
+            _lastNetworkPlacedItems = placed;
+            _lastNetworkLitCandles = candles;
+            _placedItems = placed;
+            _litCandles = candles;
+            _wave = ghostWorld.RitualWave;
+            _ritualActive = ghostWorld.RitualActive;
+            _ritualComplete = ghostWorld.RitualWavesComplete;
+            _ritualFailed = ghostWorld.RitualFailed;
+            if (ghostWorld.RitualVictory) _status = "EL FANTASMA FUE EXPULSADO - VICTORIA";
+            else if (_ritualFailed) _status = "RITUAL FALLIDO - EL FANTASMA SE HA ENFURECIDO";
+            else if (_ritualActive) _status = $"OLEADA {_wave + 1}/3 - Resiste dentro del circulo.";
+            else if (_placedItems == 3 && _litCandles == 3) _status = "El circulo esta listo; espera al acto del ritual.";
+            else if (_litCandles > 0) _status = $"Velas encendidas: {_litCandles}/3";
+            else _status = $"Objetos colocados: {_placedItems}/3";
+        }
         private void StartRitual()
         {
             if (nightClock == null || nightClock.Act != NightAct.Ritual)
@@ -152,6 +233,7 @@ namespace UltimaCinta.Data
                 _status = "El circulo esta listo; espera al acto del ritual.";
                 return;
             }
+            ghostWorld?.ActivateForRitual();
             if (ghostWorld == null || ghostWorld.Agent == null || gameConfig == null) return;
             _ritualActive = true;
             _wave = 0;

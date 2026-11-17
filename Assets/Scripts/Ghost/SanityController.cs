@@ -85,7 +85,8 @@ namespace UltimaCinta.Ghost
             }
             var lit = false;
             foreach (var light in _nearbyLights)
-                if (light.enabled && light.intensity > 0f && Vector3.Distance(light.transform.position, transform.position) < gameConfig.GhostInterferenceRange)
+                if (light != null && light.enabled && light.intensity > 0f &&
+                    Vector3.Distance(light.transform.position, transform.position) < gameConfig.GhostInterferenceRange)
                 { lit = true; break; }
             if (lit) currentSanity += gameConfig.SanityLightRecoveryPerSecond * Time.deltaTime;
             else currentSanity -= gameConfig.SanityDarknessDrainPerSecond * Time.deltaTime;

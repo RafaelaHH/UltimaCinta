@@ -1,4 +1,5 @@
 using System;
+using Fusion;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
@@ -8,15 +9,27 @@ namespace UltimaCinta.Ghost
 {
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NavMeshAgent))]
-    public sealed class GhostAgent : MonoBehaviour
+    public sealed class GhostAgent : NetworkBehaviour
     {
         [SerializeField] private NavMeshAgent navigation;
+        [Networked] private byte NetworkState { get; set; }
+        [Networked] private float NetworkStateTimer { get; set; }
+        [Networked] private float NetworkWanderTimer { get; set; }
+        [Networked] private float NetworkHuntCooldown { get; set; }
+        [Networked] private float NetworkPlayerScanTimer { get; set; }
+        [Networked] private float NetworkBehaviorTickTimer { get; set; }
+        [Networked] private float NetworkActiveHuntDuration { get; set; }
+        [Networked] private float NetworkHuntDurationMultiplier { get; set; }
+        [Networked] private float NetworkSessionTimer { get; set; }
+        [Networked] private float NetworkRestDuration { get; set; }
+        [Networked] private NetworkBool NetworkHasHunted { get; set; }
         private GhostType _type;
         private GameConfig _config;
         private Transform[] _players = Array.Empty<Transform>();
         private UltimaCinta.CameraSystem.CameraResourceController[] _cameraResources = Array.Empty<UltimaCinta.CameraSystem.CameraResourceController>();
         private SanityController[] _sanityControllers = Array.Empty<SanityController>();
         private UltimaCinta.Player.PlayerInventory[] _inventories = Array.Empty<UltimaCinta.Player.PlayerInventory>();
+        private UltimaCinta.Player.NetworkPlayerAvatar[] _networkAvatars = Array.Empty<UltimaCinta.Player.NetworkPlayerAvatar>();
         private UltimaCinta.Interaction.HideoutInteractable[] _hideouts = Array.Empty<UltimaCinta.Interaction.HideoutInteractable>();
         private float _aggression;
         private float _stateTimer;
@@ -33,19 +46,26 @@ namespace UltimaCinta.Ghost
         private UltimaCinta.Interaction.DoorInteractable[] _doors = Array.Empty<UltimaCinta.Interaction.DoorInteractable>();
         private Vector3 _homePosition;
         private bool _isInitialized;
+        private bool _networkStarted;
+        private bool _lastStateAuthority;
+        private GhostState _localState = GhostState.Wandering;
+        private GhostState _renderedState;
+        private float _localInterference;
         private bool _navigationWarningLogged;
         private bool _hasHunted;
         private readonly Collider[] _nearbyObjectBuffer = new Collider[32];
 
         public GhostType Type => _type;
-        public GhostState State { get; private set; } = GhostState.Wandering;
-        public float Interference { get; private set; }
+        public GhostState State => _networkStarted ? (GhostState)NetworkState : _localState;
+        public float Interference => _localInterference;
+        public bool IsInitialized => _isInitialized;
         public event Action<GhostAgent, Transform> PlayerKilled;
         public event Action<GhostAgent, GhostState> StateChanged;
         public event Action<GhostEvidence> EvidenceProduced;
 
         public void Initialize(GhostType type, GameConfig config, GhostRoomMarker favoriteRoom, float aggression)
         {
+            if (_isInitialized && _type == type && _config == config && Mathf.Approximately(_aggression, aggression)) return;
             _type = type;
             _config = config;
             _aggression = Mathf.Clamp01(aggression);
@@ -58,8 +78,69 @@ namespace UltimaCinta.Ghost
             _lights = FindObjectsByType<Light>(FindObjectsSortMode.None);
             _lightStates = new bool[_lights.Length];
             _doors = FindObjectsByType<UltimaCinta.Interaction.DoorInteractable>(FindObjectsSortMode.None);
-            ChangeState(GhostState.Wandering);
-            ProduceEvidence(GhostEvidence.Apparition);
+            if (!_networkStarted || HasStateAuthority)
+            {
+                ChangeState(GhostState.Wandering);
+                ProduceEvidence(GhostEvidence.Apparition);
+            }
+        }
+
+        public override void Spawned()
+        {
+            _networkStarted = true;
+            _lastStateAuthority = HasStateAuthority;
+            if (HasStateAuthority && _isInitialized)
+            {
+                NetworkState = (byte)_localState;
+                StoreNetworkTimers();
+            }
+            if (navigation != null) navigation.enabled = HasStateAuthority;
+            _renderedState = State;
+            FindFirstObjectByType<GhostWorldController>()?.RegisterAgent(this);
+        }
+
+        public override void FixedUpdateNetwork()
+        {
+            if (!_networkStarted) return;
+            var hasAuthority = HasStateAuthority;
+            if (hasAuthority != _lastStateAuthority)
+            {
+                _lastStateAuthority = hasAuthority;
+                Debug.Log($"[Fusion] Autoridad de IA transferida: activa={hasAuthority}.", this);
+                if (navigation != null) navigation.enabled = hasAuthority;
+                if (hasAuthority) RestoreNetworkTimers();
+            }
+            if (!hasAuthority) return;
+            Tick(Runner.DeltaTime);
+            StoreNetworkTimers();
+        }
+
+        private void StoreNetworkTimers()
+        {
+            NetworkStateTimer = _stateTimer;
+            NetworkWanderTimer = _wanderTimer;
+            NetworkHuntCooldown = _huntCooldown;
+            NetworkPlayerScanTimer = _playerScanTimer;
+            NetworkBehaviorTickTimer = _behaviorTickTimer;
+            NetworkActiveHuntDuration = _activeHuntDuration;
+            NetworkHuntDurationMultiplier = _huntDurationMultiplier;
+            NetworkSessionTimer = _sessionTimer;
+            NetworkRestDuration = _restDuration;
+            NetworkHasHunted = _hasHunted;
+        }
+
+        private void RestoreNetworkTimers()
+        {
+            _stateTimer = NetworkStateTimer;
+            _wanderTimer = NetworkWanderTimer;
+            _huntCooldown = NetworkHuntCooldown;
+            _playerScanTimer = NetworkPlayerScanTimer;
+            _behaviorTickTimer = NetworkBehaviorTickTimer;
+            _activeHuntDuration = NetworkActiveHuntDuration;
+            _huntDurationMultiplier = NetworkHuntDurationMultiplier;
+            _sessionTimer = NetworkSessionTimer;
+            _restDuration = NetworkRestDuration;
+            _hasHunted = NetworkHasHunted;
         }
 
         private void Awake()
@@ -72,19 +153,35 @@ namespace UltimaCinta.Ghost
 
         private void Update()
         {
+            if (_networkStarted) return;
+            Tick(Time.deltaTime);
+        }
+
+        public override void Render()
+        {
+            if (!_networkStarted) return;
+            var state = State;
+            if (state == _renderedState) return;
+            _renderedState = state;
+            StateChanged?.Invoke(this, state);
+        }
+
+        private void Tick(float deltaTime)
+        {
+            if (_networkStarted && !HasStateAuthority) return;
             if (!_isInitialized || _config == null) return;
-            _stateTimer += Time.deltaTime;
-            _sessionTimer += Time.deltaTime;
-            _wanderTimer += Time.deltaTime;
-            _huntCooldown = Mathf.Max(0f, _huntCooldown - Time.deltaTime);
-            _playerScanTimer -= Time.deltaTime;
+            _stateTimer += deltaTime;
+            _sessionTimer += deltaTime;
+            _wanderTimer += deltaTime;
+            _huntCooldown = Mathf.Max(0f, _huntCooldown - deltaTime);
+            _playerScanTimer -= deltaTime;
             if (_playerScanTimer <= 0f)
             {
                 CachePlayers();
                 _playerScanTimer = _config != null ? _config.GhostTargetRefreshSeconds : 0.5f;
             }
             UpdateInterference();
-            _behaviorTickTimer += Time.deltaTime;
+            _behaviorTickTimer += deltaTime;
             if (_behaviorTickTimer >= _config.GhostTargetRefreshSeconds)
             {
                 var elapsed = _behaviorTickTimer;
@@ -103,6 +200,7 @@ namespace UltimaCinta.Ghost
 
         public void HearNoise(Vector3 position, float loudness)
         {
+            if (_networkStarted && !HasStateAuthority) return;
             if (_type == null || (_type.Behavior & GhostBehavior.HuntsBySound) == 0) return;
             if (Vector3.Distance(transform.position, position) > _config.GhostHearingRange * Mathf.Clamp(loudness, 0.1f, 2f)) return;
             SetDestination(position);
@@ -118,6 +216,7 @@ namespace UltimaCinta.Ghost
 
         public void TriggerHunt()
         {
+            if (_networkStarted && !HasStateAuthority) return;
             if (!_isInitialized || State == GhostState.Hunting) return;
             var vampiricDarknessRule = (_type.Behavior & GhostBehavior.HuntsOnlyInDarkness) != 0 && AnyRoomLightOn();
             if (vampiricDarknessRule || _huntCooldown > 0f) return;
@@ -137,6 +236,7 @@ namespace UltimaCinta.Ghost
 
         public void TriggerRitualHunt(float durationMultiplier, float speedMultiplier)
         {
+            if (_networkStarted && !HasStateAuthority) return;
             if (!_isInitialized) return;
             if (State == GhostState.Hunting)
             {
@@ -153,6 +253,7 @@ namespace UltimaCinta.Ghost
 
         public void Enrage(float speedMultiplier)
         {
+            if (_networkStarted && !HasStateAuthority) return;
             if (navigation != null && _type != null)
                 navigation.speed = _type.MovementSpeed * _config.GhostMovementSpeedMultiplier * Mathf.Max(1f, speedMultiplier);
         }
@@ -208,8 +309,13 @@ namespace UltimaCinta.Ghost
             SetDestination(target.position);
             if (Vector3.Distance(transform.position, target.position) <= _config.GhostHuntDistance)
             {
+                var avatar = target.GetComponent<UltimaCinta.Player.NetworkPlayerAvatar>();
+                if (avatar != null && avatar.IsDead) return;
                 var sanity = target.GetComponent<SanityController>();
-                if (sanity != null && !sanity.IsDead) { PlayerKilled?.Invoke(this, target); sanity.Die(); }
+                if (sanity != null && sanity.IsDead) return;
+                PlayerKilled?.Invoke(this, target);
+                if (avatar != null) avatar.RequestDeath();
+                else sanity?.Die();
             }
         }
 
@@ -272,6 +378,25 @@ namespace UltimaCinta.Ghost
 
         private void CachePlayers()
         {
+            if (_networkStarted)
+            {
+                var avatars = FindObjectsByType<UltimaCinta.Player.NetworkPlayerAvatar>(FindObjectsSortMode.None);
+                _networkAvatars = avatars;
+                _players = new Transform[avatars.Length];
+                _cameraResources = new UltimaCinta.CameraSystem.CameraResourceController[avatars.Length];
+                _sanityControllers = new SanityController[avatars.Length];
+                _inventories = new UltimaCinta.Player.PlayerInventory[avatars.Length];
+                for (var index = 0; index < avatars.Length; index++)
+                {
+                    _players[index] = avatars[index].transform;
+                    _cameraResources[index] = avatars[index].GetComponentInChildren<UltimaCinta.CameraSystem.CameraResourceController>(true);
+                    _sanityControllers[index] = avatars[index].GetComponent<SanityController>();
+                    _inventories[index] = avatars[index].GetComponent<UltimaCinta.Player.PlayerInventory>();
+                }
+                _hideouts = FindObjectsByType<UltimaCinta.Interaction.HideoutInteractable>(FindObjectsSortMode.None);
+                return;
+            }
+
             var found = FindObjectsByType<UltimaCinta.Player.FirstPersonMovementController>(FindObjectsSortMode.None);
             _hideouts = FindObjectsByType<UltimaCinta.Interaction.HideoutInteractable>(FindObjectsSortMode.None);
             if (_players.Length != found.Length)
@@ -298,6 +423,7 @@ namespace UltimaCinta.Ghost
             {
                 var player = _players[index];
                 if (player == null) continue;
+                if (index < _networkAvatars.Length && _networkAvatars[index] != null && _networkAvatars[index].IsDead) continue;
                 if (_sanityControllers[index] != null && _sanityControllers[index].IsDead) continue;
                 if (IsHidden(player.gameObject)) continue;
                 var distance = (player.position - transform.position).sqrMagnitude;
@@ -327,7 +453,7 @@ namespace UltimaCinta.Ghost
         private void UpdateInterference()
         {
             var nearest = FindNearestPlayer();
-            Interference = nearest == null ? 0f : 1f - Mathf.Clamp01(Vector3.Distance(transform.position, nearest.position) / Mathf.Max(0.01f, _config.GhostInterferenceRange));
+            _localInterference = nearest == null ? 0f : 1f - Mathf.Clamp01(Vector3.Distance(transform.position, nearest.position) / Mathf.Max(0.01f, _config.GhostInterferenceRange));
         }
 
         private void WanderNearHome()
@@ -360,7 +486,8 @@ namespace UltimaCinta.Ghost
 
             if (_type != null && (_type.Behavior & GhostBehavior.PassesThroughWalls) != 0)
             {
-                transform.position = Vector3.MoveTowards(transform.position, point, _type.MovementSpeed * Time.deltaTime);
+                var deltaTime = _networkStarted ? Runner.DeltaTime : Time.deltaTime;
+                transform.position = Vector3.MoveTowards(transform.position, point, _type.MovementSpeed * deltaTime);
                 return;
             }
 
@@ -463,10 +590,18 @@ namespace UltimaCinta.Ghost
 
         private void ChangeState(GhostState state)
         {
-            State = state;
+            if (_networkStarted)
+            {
+                if (!HasStateAuthority) return;
+                NetworkState = (byte)state;
+            }
+            else
+            {
+                _localState = state;
+            }
             _stateTimer = 0f;
             Debug.Log($"[Fase 3] {_type?.DisplayName ?? name}: estado IA -> {state}.", this);
-            StateChanged?.Invoke(this, state);
+            if (!_networkStarted) StateChanged?.Invoke(this, state);
             if (state == GhostState.Activity && _type != null)
             {
                 if ((_type.Behavior & GhostBehavior.ThrowsObjects) != 0) PushLooseObject();
