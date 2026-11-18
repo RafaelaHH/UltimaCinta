@@ -148,6 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 600707366bef6c5439b4a652a245a7b2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.UI.BootstrapLobbyLoader
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
   lobbySceneName: Lobby
 --- !u!4 &8513152
 Transform:

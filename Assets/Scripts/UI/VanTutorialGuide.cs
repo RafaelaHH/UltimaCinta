@@ -20,9 +20,9 @@ namespace UltimaCinta.UI
 
         private void Start()
         {
-            if (_networkAvatar == null) ConfigureRole(true);
-            else if (_networkAvatar.IsNetworkStarted) ConfigureRole(_networkAvatar.IsLocalPlayer);
-            if (_van == null) _van = FindFirstObjectByType<VanSupplyInteractable>();
+            if (_networkAvatar == null || !_networkAvatar.IsNetworkStarted) ConfigureRole(true);
+            else ConfigureRole(_networkAvatar.IsLocalPlayer);
+            if (_van == null) _van = FindAnyObjectByType<VanSupplyInteractable>();
         }
 
         private void Update()
@@ -32,7 +32,7 @@ namespace UltimaCinta.UI
                 _visible = false;
                 return;
             }
-            if (_van == null) _van = FindFirstObjectByType<VanSupplyInteractable>();
+            if (_van == null) _van = FindAnyObjectByType<VanSupplyInteractable>();
             _visible = _van != null && _van.IsOccupant(gameObject);
         }
 

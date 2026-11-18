@@ -15,6 +15,7 @@ namespace UltimaCinta.Audio
         [SerializeField] private NetworkPlayerAvatar networkAvatar;
 
         private CharacterController _characterController;
+        private GhostWorldController _world;
         private AudioSource _footstepSource;
         private AudioSource _heartbeatSource;
         private AudioSource _ambientSource;
@@ -45,6 +46,7 @@ namespace UltimaCinta.Audio
         {
             if (networkAvatar == null || !networkAvatar.IsNetworkStarted) ConfigureRole(isLocalPlayer: true);
             GameSettingsStore.Apply(gameConfig);
+            _world = FindAnyObjectByType<GhostWorldController>();
         }
 
         private void Update()
@@ -115,9 +117,13 @@ namespace UltimaCinta.Audio
             if (gameConfig == null || sanityController == null || sanityController.IsDead) return;
             var threshold = gameConfig.Audio.HeartbeatSanityThreshold;
             var sanity = sanityController.Value;
-            if (sanity >= threshold || Time.time < _nextHeartbeatTime) return;
+            if (Time.time < _nextHeartbeatTime) return;
 
             var distress = 1f - Mathf.Clamp01(sanity / Mathf.Max(0.01f, threshold));
+            var ghost = _world != null ? _world.Agent : null;
+            if (ghost != null) distress = Mathf.Max(distress, 1f - Mathf.Clamp01(
+                Vector3.Distance(transform.position, ghost.transform.position) / gameConfig.Atmosphere.HeartbeatRange));
+            if (distress <= 0f) return;
             var interval = Mathf.Lerp(gameConfig.Audio.HeartbeatIntervalAtThresholdSeconds,
                 gameConfig.Audio.HeartbeatIntervalAtZeroSeconds, distress);
             _nextHeartbeatTime = Time.time + interval;

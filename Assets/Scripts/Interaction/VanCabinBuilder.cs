@@ -7,7 +7,7 @@ namespace UltimaCinta.Interaction
     {
         private const float BoundsExpansion = 0.8f;
         private const float WallThickness = 0.12f;
-        private const float ExitOpeningWidth = 1.05f;
+        private const float ExitOpeningWidth = 1.6f;
         private const float ShelfThickness = 0.08f;
         private const float EntranceRampLength = 0.9f;
         private const float EntranceRise = 0.4f;
@@ -15,10 +15,11 @@ namespace UltimaCinta.Interaction
         {
             var bounds = trigger.bounds;
             var lengthRunsAlongZ = bounds.extents.z > bounds.extents.x;
-            var halfLength = Mathf.Max(1.25f, (lengthRunsAlongZ ? bounds.extents.z : bounds.extents.x) - BoundsExpansion * 0.5f);
-            var halfWidth = Mathf.Max(0.72f, (lengthRunsAlongZ ? bounds.extents.x : bounds.extents.z) - BoundsExpansion * 0.5f);
+            var halfLength = van.Config.Atmosphere.CabinLength * 0.5f;
+            var halfWidth = van.Config.Atmosphere.CabinWidth * 0.5f;
             var floorY = bounds.min.y + BoundsExpansion * 0.5f + WallThickness * 0.5f;
-            var height = Mathf.Clamp(bounds.size.y - BoundsExpansion - 0.2f, 1.9f, 2.15f);
+            var height = van.Config.Atmosphere.CabinHeight;
+            halfLength = van.Config.Atmosphere.CabinLength * 0.5f;
             var interior = new GameObject("Interior físico de camioneta");
             interior.transform.SetPositionAndRotation(bounds.center,
                 lengthRunsAlongZ ? Quaternion.Euler(0f, -90f, 0f) : Quaternion.identity);
@@ -82,15 +83,31 @@ namespace UltimaCinta.Interaction
             exit.AddComponent<VanExitInteractable>().SetVan(van);
 
             PlaceSupplies(supplies, interior.transform, center, lowerShelfY, upperShelfY, minX, maxX, shelfZOffset);
+            VanMonitor.Create(interior.transform, new Vector3(minX + 0.18f, floorLocalY + 1.65f, 0f), van);
+            CreatePart(interior.transform, "Cabina motor", new Vector3(minX - 0.8f, floorLocalY + 0.75f, 0f),
+                new Vector3(1.5f, 1.5f, halfWidth * 1.8f), CabinColor(0.14f, 0.18f, 0.20f), true);
+            CreatePart(interior.transform, "Parabrisas", new Vector3(minX - 1.56f, floorLocalY + 1.18f, 0f),
+                new Vector3(0.04f, 0.55f, halfWidth * 1.5f), CabinColor(0.04f, 0.08f, 0.10f), false);
+            foreach (var x in new[] {minX + 0.3f, maxX - 0.6f})
+                foreach (var z in new[] {-halfWidth, halfWidth})
+                {
+                    var wheel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    wheel.name = "Rueda de camioneta";
+                    wheel.transform.SetParent(interior.transform, false);
+                    wheel.transform.localPosition = new Vector3(x, floorLocalY - 0.1f, z);
+                    wheel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                    wheel.transform.localScale = new Vector3(0.8f, 0.15f, 0.8f);
+                    wheel.GetComponent<Renderer>().sharedMaterial = CabinColor(0.025f, 0.025f, 0.025f);
+                }
             interior.SetActive(false);
             return interior;
         }
 
-        public static Vector3 EntryPosition(BoxCollider trigger)
+        public static Vector3 EntryPosition(BoxCollider trigger, VanSupplyInteractable van)
         {
             var bounds = trigger.bounds;
             var lengthRunsAlongZ = bounds.extents.z > bounds.extents.x;
-            var halfLength = Mathf.Max(1.25f, (lengthRunsAlongZ ? bounds.extents.z : bounds.extents.x) - BoundsExpansion * 0.5f);
+            var halfLength = van.Config.Atmosphere.CabinLength * 0.5f;
             var floorLocalY = bounds.min.y + BoundsExpansion * 0.5f + WallThickness * 0.5f - bounds.center.y;
             var localEntry = new Vector3(halfLength + EntranceRampLength * 0.5f,
                 floorLocalY - EntranceRise * 0.5f, 0f);
@@ -107,8 +124,9 @@ namespace UltimaCinta.Interaction
             var lengthRunsAlongZ = bounds.extents.z > bounds.extents.x;
             var floorLocalY = bounds.min.y + BoundsExpansion * 0.5f + WallThickness * 0.5f - bounds.center.y;
             var rotation = lengthRunsAlongZ ? Quaternion.Euler(0f, -90f, 0f) : Quaternion.identity;
-            var lateralOffset = (occupantIndex - 1) * 0.65f;
-            return bounds.center + rotation * new Vector3(lateralOffset, floorLocalY + 0.95f, 0f);
+            var lateralOffset = occupantIndex % 2 == 0 ? -0.72f : 0.72f;
+            var rowOffset = occupantIndex / 2 == 0 ? -1.1f : 1.1f;
+            return bounds.center + rotation * new Vector3(rowOffset, floorLocalY + WallThickness * 0.5f + 0.05f, lateralOffset);
         }
 
         private static void PlaceSupplies(List<PickupInteractable> supplies, Transform interior, Vector3 center, float lowerShelfY,

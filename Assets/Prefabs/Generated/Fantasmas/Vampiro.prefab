@@ -81,6 +81,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2545475667718741969}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6060390178524355458}
   m_SourcePrefab: {fileID: 100100000, guid: fad8558ae9436f14fbf34552a70caa71, type: 3}
 --- !u!1 &1722085565006927059 stripped
 GameObject:
@@ -240,3 +243,17 @@ MonoBehaviour:
     MinImpactfulCollisionAlignment: 0.3
     ImpactStartCorrectionTime: 0.1
     ImpactCorrectionTimeComplete: 0.3
+--- !u!114 &6060390178524355458
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1722085565006927059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf42f7c689cb30a489255090e35e11f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Audio.GhostAudioController
+  ghostAgent: {fileID: 5772261274493513743}
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}

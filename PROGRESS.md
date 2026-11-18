@@ -13,7 +13,7 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
   - Las tres escenas están creadas y registradas en ese orden. `SampleScene` se conserva y sigue primero en Build Settings.
 - [x] Hacer la lista de assets que faltan (objetos, muebles, herramientas, fantasmas) con nombre y prioridad.
 - [ ] Generar cada asset con Hunyuan3D en hy.3d.tencent.ai y guardarlo en la carpeta Assets/Generated/.
-  - `Docs/AssetList.md` enumera 18 assets pendientes; no se generaron modelos durante esta tarea.
+  - El inventario original ya está en `Assets/Generated/`; en esta tarea se integraron los cuatro FBX de jugadores que entregó el usuario en `Assets/Generated/Jugadores/`. No se generaron modelos nuevos en Hunyuan3D.
 - [ ] Revisar los términos de uso de Hunyuan3D para juegos publicados antes de lanzar.
   - Pendiente de revisión.
 - [x] Importar cada modelo a Unity, ajustar escala, pivote y colisionadores, y guardarlo como prefab.
@@ -86,7 +86,7 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 ## Fase 5 — Multijugador (días 18–25)
 
-> Build Windows y compilación Unity 6 correctas. Dos instancias en la misma PC se unieron a Photon (`Player:1` y `Player:2`), cargaron la mansión y sincronizaron en vivo soltar/mostrar/recoger un objeto. Al cerrar el creador con fantasma activo, el invitado mantuvo la sesión y registró el traspaso de autoridad del reloj, del estado global del fantasma y de la IA. Siguen pendientes la prueba en dos PCs distintas y la comprobación manual de movimiento/animación, cámara/linterna, puertas/luces, diario/evidencias y desconexión/muerte antes de cerrar la fase.
+> Build Windows y compilación Unity 6 correctas. Dos instancias en la misma PC se unieron a Photon (`Player:1` y `Player:2`), cargaron la mansión y sincronizaron soltar/mostrar/recoger un objeto. Al cerrar el creador con fantasma activo, el invitado siguió conectado y registró el traspaso de autoridad del reloj, el estado global del fantasma y la IA. La build final no registró excepciones en esta prueba. Pendientes: jugar desde dos PCs y comprobar manualmente movimiento/animación, cámara/linterna, puertas/luces, diario/evidencias y muerte/desconexión.
 
 - [x] Pantalla de lobby: crear sala con un nombre y unirse por nombre de sala.
 - [x] Conexión con Photon Fusion 2 en Shared Mode; spawn configurado para hasta 4 jugadores.
@@ -96,21 +96,29 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 - [x] Capa fantasma local por jugador según el estado de su cámara.
 - [x] Manejo de desconexiones: contar al jugador como muerto y mantener el fantasma activo.
 - [x] Cualquiera puede marcar evidencias y elegir sospechoso; el diario refleja el estado compartido.
-- [ ] Prueba: dos instancias en la misma PC, luego dos PCs distintas con Photon.
+- [x] Prueba QA: dos instancias en la misma PC, recogida de una llave de red y traspaso de autoridad al salir el creador.
+- [ ] Prueba con dos PCs distintas y revisión manual de todas las interacciones sincronizadas.
 
 ## Fase 6 — Audio, pulido y balance (días 24–29)
 
-- [ ] Audio 3D: pasos, puertas, voz del fantasma, latidos según miedo (sonidos de terceros permitidos; guardar la licencia de cada uno).
-- [ ] Sonido distinto por cada fantasma y por cada fase de cacería.
-- [ ] Efectos visuales de la cámara según la interferencia.
-- [ ] Menú principal, pausa y ajustes (volumen, sensibilidad, subtítulos).
-- [ ] Tutorial corto en la camioneta: cómo usar cámara, diario y herramientas.
+- [x] Audio 3D: pasos, puertas, voz del fantasma, latidos según miedo (sonidos de terceros permitidos; guardar la licencia de cada uno).
+  - Catálogo original sintetizado en ejecución; no se importó audio de terceros. Se documenta en `Docs/AudioAssets.md`.
+- [x] Sonido distinto por cada fantasma y por cada fase de cacería.
+  - QA creó y comprobó 16 clips únicos (cuatro tipos de fantasma × cuatro estados), además de pasos, latidos, puertas y UI. La verificación de setup final contó 26 clips sintetizados.
+- [x] Efectos visuales de la cámara según la interferencia.
+- [x] Menú principal, pausa y ajustes (volumen, sensibilidad, subtítulos).
+- [x] Tutorial corto en la camioneta: cómo usar cámara, diario y herramientas.
 - [ ] Pasada de balance: probar 5 partidas completas y ajustar GameConfig hasta que dure 2.5–3.5 h.
-- [ ] Corregir los errores más graves de la lista de pruebas.
+- [x] Corregir los errores más graves de la lista de pruebas.
+  - La revisión de logs y QA de esta fase no encontró excepciones de ejecución que impidan continuar. Las pruebas interactivas pendientes siguen listadas en las fases 3 y 5.
+
+> QA Unity 6: compilación y comprobación estática correctas; Bootstrap, Player, pausa, tutorial, subtítulos, pantalla final, 41 puertas y los cuatro prefabs de fantasma enlazan sus referencias. El reloj principal queda en 180 minutos (3 h nominales). Los ocho casos de ritual volvieron a pasar: victoria y fallo con diario incorrecto para los cuatro fantasmas. Falta jugar y escuchar en Play Mode, y ejecutar las cinco partidas completas; por eso la pasada de balance permanece abierta.
+
+> Integración final: grabación de camcorder a 2 FPS con presupuesto local configurable; el monitor de la camioneta ofrece cámara en directo y reproducción de capturas de la sesión local. La cabina admite cuatro plazas y mantiene visible el modelo exterior `camioneta.fbx`. Se abrió el suelo exterior para enlazar las escaleras P-B7 del sótano. La prueba de red de dos clientes comprobó la llave, la desconexión del host y el traspaso; la corrección posterior de lectura al despawn volvió a pasar sin excepciones.
 
 ## Fase 7 — Entrega (días 29–30)
 
-- [ ] Build para Windows.
+- [x] Build para Windows (Unity 6, cinco escenas activas): `Builds/PhaseSix/UltimaCinta.exe`.
 - [ ] Prueba final con 3–4 amigos en red real.
 - [ ] Lista de errores conocidos y mejoras para la v2.
 

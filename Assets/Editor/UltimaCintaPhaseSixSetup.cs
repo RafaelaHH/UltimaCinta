@@ -38,6 +38,106 @@ namespace UltimaCinta.Editor
             Debug.Log("Fase 6 preparada: audio, menú, opciones, pausa, guía de camioneta y cámara configurados.");
         }
 
+        public static void VerifyPhaseSix()
+        {
+            var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            Require(config != null, "Falta GameConfig.");
+            Require(Mathf.Approximately(config.RealNightDurationMinutes, 180f), "La noche de balance debe durar 180 minutos reales.");
+            Require(Mathf.Approximately(config.GameNightDurationHours, 8f), "La noche del juego debe representar ocho horas.");
+            Require(config.Audio != null, "Falta GameAudioConfig serializado.");
+            var audioClipCount = VerifyAudioCues();
+
+            var player = PrefabUtility.LoadPrefabContents(PlayerPrefabPath);
+            try
+            {
+                Require(player.GetComponent<PlayerAudioController>() != null, "Falta audio del jugador en Player.prefab.");
+                Require(player.GetComponent<SubtitleOverlay>() != null, "Faltan subtítulos en Player.prefab.");
+                Require(player.GetComponent<PauseMenuController>() != null, "Falta menú de pausa en Player.prefab.");
+                Require(player.GetComponent<VanTutorialGuide>() != null, "Falta tutorial en Player.prefab.");
+                Require(HasReference(player.GetComponent<PlayerAudioController>(), "gameConfig", config), "Audio del jugador no apunta a GameConfig.");
+                Require(HasReference(player.GetComponent<PauseMenuController>(), "gameConfig", config), "Pausa no apunta a GameConfig.");
+                var recorder = player.GetComponent<CamcorderRecording>();
+                Require(recorder != null && HasReference(recorder, "gameConfig", config), "La grabación de camcorder no está configurada en Player.prefab.");
+            }
+            finally { PrefabUtility.UnloadPrefabContents(player); }
+
+            var profiles = new System.Collections.Generic.HashSet<GhostSoundProfile>();
+            var ghostCount = 0;
+            foreach (var guid in AssetDatabase.FindAssets("t:GhostType", new[] { "Assets/Scripts/Data/Ghosts" }))
+            {
+                var ghostType = AssetDatabase.LoadAssetAtPath<GhostType>(AssetDatabase.GUIDToAssetPath(guid));
+                if (ghostType == null) continue;
+                ghostCount++;
+                profiles.Add(ghostType.SoundProfile);
+                var prefabPath = AssetDatabase.GetAssetPath(ghostType.GhostPrefab);
+                var ghostPrefab = PrefabUtility.LoadPrefabContents(prefabPath);
+                try
+                {
+                    var agent = ghostPrefab.GetComponentInChildren<GhostAgent>(true);
+                    var audio = agent != null ? agent.GetComponent<GhostAudioController>() : null;
+                    Require(audio != null, $"{ghostType.DisplayName} no tiene GhostAudioController.");
+                    Require(HasReference(audio, "gameConfig", config), $"Audio de {ghostType.DisplayName} no apunta a GameConfig.");
+                }
+                finally { PrefabUtility.UnloadPrefabContents(ghostPrefab); }
+            }
+            Require(ghostCount == 4 && profiles.Count == 4, "Los cuatro fantasmas deben tener perfiles de sonido distintos.");
+
+            var bootstrap = EditorSceneManager.OpenScene(BootstrapScenePath, OpenSceneMode.Single);
+            Require(bootstrap.isLoaded, "No se pudo cargar Bootstrap.");
+            var loader = Object.FindAnyObjectByType<BootstrapLobbyLoader>(FindObjectsInactive.Include);
+            Require(loader != null && HasReference(loader, "gameConfig", config), "Bootstrap no tiene menú principal configurado.");
+
+            var mansion = EditorSceneManager.OpenScene(MansionScenePath, OpenSceneMode.Single);
+            var doors = Object.FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include);
+            Require(doors.Length > 0, "La mansión no contiene puertas para probar el audio.");
+            foreach (var door in doors) Require(HasReference(door, "gameConfig", config), $"La puerta {door.name} no tiene GameConfig.");
+            var clock = Object.FindAnyObjectByType<NightClock>(FindObjectsInactive.Include);
+            var endScreen = Object.FindAnyObjectByType<GameEndScreen>(FindObjectsInactive.Include);
+            var van = Object.FindAnyObjectByType<VanSupplyInteractable>(FindObjectsInactive.Include);
+            Require(clock != null && endScreen != null, "La mansión necesita reloj y pantallas de resultado.");
+            Require(HasReference(endScreen, "nightClock", clock), "La pantalla final no está conectada al reloj.");
+            Require(van != null && HasReference(van, "gameConfig", config), "La camioneta no tiene GameConfig para crear su cabina y monitor.");
+            Require(AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/VanMonitorMaterial.mat") != null, "Falta el material incluido del monitor de la camioneta.");
+            Require(mansion.isLoaded, "No se pudo cargar la mansión.");
+
+            Debug.Log($"[Fase 6 QA] PASS | noche={config.RealNightDurationMinutes} min | clips originales={audioClipCount} | fantasmas={ghostCount} | puertas={doors.Length} | Bootstrap, jugador, pausa, tutorial, subtítulos y pantallas enlazados.");
+        }
+
+        private static int VerifyAudioCues()
+        {
+            var clips = new System.Collections.Generic.List<AudioClip>
+            {
+                AudioCueLibrary.Heartbeat(), AudioCueLibrary.RoomTone(), AudioCueLibrary.Door(true), AudioCueLibrary.Door(false),
+                AudioCueLibrary.Pickup(), AudioCueLibrary.UiClick(), AudioCueLibrary.Milestone()
+            };
+            for (var index = 0; index < 3; index++) clips.Add(AudioCueLibrary.Footstep(index));
+
+            var ghostClipNames = new System.Collections.Generic.HashSet<string>();
+            foreach (GhostSoundProfile profile in System.Enum.GetValues(typeof(GhostSoundProfile)))
+                foreach (GhostState state in System.Enum.GetValues(typeof(GhostState)))
+                {
+                    var clip = AudioCueLibrary.GhostCue(profile, state);
+                    Require(clip != null && clip.samples > 0, $"Falta el clip de {profile}/{state}.");
+                    Require(ghostClipNames.Add(clip.name), $"El sonido de {profile}/{state} se repite.");
+                    clips.Add(clip);
+                }
+
+            foreach (var clip in clips) Require(clip != null && clip.samples > 0, "El catálogo de audio tiene un clip vacío.");
+            return clips.Count;
+        }
+
+        private static bool HasReference(Object component, string propertyName, Object expected)
+        {
+            if (component == null) return false;
+            var property = new SerializedObject(component).FindProperty(propertyName);
+            return property != null && property.objectReferenceValue == expected;
+        }
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new System.InvalidOperationException($"[Fase 6 QA] FAIL | {message}");
+        }
+
         private static void ConfigureAudioSettings(GameConfig config)
         {
             if (config == null) return;
@@ -193,11 +293,11 @@ namespace UltimaCinta.Editor
         private static void ConfigureMansionScene(GameConfig config)
         {
             var scene = EditorSceneManager.OpenScene(MansionScenePath, OpenSceneMode.Single);
-            foreach (var door in Object.FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var door in Object.FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include))
                 SetComponentReference(door, "gameConfig", config);
 
-            var clock = Object.FindFirstObjectByType<NightClock>(FindObjectsInactive.Include);
-            var endScreen = Object.FindFirstObjectByType<GameEndScreen>(FindObjectsInactive.Include);
+            var clock = Object.FindAnyObjectByType<NightClock>(FindObjectsInactive.Include);
+            var endScreen = Object.FindAnyObjectByType<GameEndScreen>(FindObjectsInactive.Include);
             if (clock != null)
             {
                 if (endScreen == null) endScreen = new GameObject("GameEndScreen").AddComponent<GameEndScreen>();

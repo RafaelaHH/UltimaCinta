@@ -53,6 +53,9 @@ namespace UltimaCinta.Ghost
         private float _localInterference;
         private bool _navigationWarningLogged;
         private bool _hasHunted;
+        private float _nextPathTime;
+        private Vector3 _lastPathTarget;
+        private float _nextDoorSlam;
         private readonly Collider[] _nearbyObjectBuffer = new Collider[32];
 
         public GhostType Type => _type;
@@ -187,6 +190,11 @@ namespace UltimaCinta.Ghost
                 var elapsed = _behaviorTickTimer;
                 _behaviorTickTimer = 0f;
                 UpdateBehavior(elapsed);
+                if (Time.time >= _nextDoorSlam && State != GhostState.Resting)
+                {
+                    SlamNearbyDoors();
+                    _nextDoorSlam = Time.time + _config.Atmosphere.DoorSlamCooldown;
+                }
             }
 
             switch (State)
@@ -310,11 +318,11 @@ namespace UltimaCinta.Ghost
             if (Vector3.Distance(transform.position, target.position) <= _config.GhostHuntDistance)
             {
                 var avatar = target.GetComponent<UltimaCinta.Player.NetworkPlayerAvatar>();
-                if (avatar != null && avatar.IsDead) return;
+                if (avatar != null && avatar.IsNetworkStarted && avatar.IsDead) return;
                 var sanity = target.GetComponent<SanityController>();
                 if (sanity != null && sanity.IsDead) return;
                 PlayerKilled?.Invoke(this, target);
-                if (avatar != null) avatar.RequestDeath();
+                if (avatar != null && avatar.IsNetworkStarted) avatar.RequestDeath();
                 else sanity?.Die();
             }
         }
@@ -423,7 +431,8 @@ namespace UltimaCinta.Ghost
             {
                 var player = _players[index];
                 if (player == null) continue;
-                if (index < _networkAvatars.Length && _networkAvatars[index] != null && _networkAvatars[index].IsDead) continue;
+                if (index < _networkAvatars.Length && _networkAvatars[index] != null &&
+                    (_networkAvatars[index].IsDead || _networkAvatars[index].InsideVan)) continue;
                 if (_sanityControllers[index] != null && _sanityControllers[index].IsDead) continue;
                 if (IsHidden(player.gameObject)) continue;
                 var distance = (player.position - transform.position).sqrMagnitude;
@@ -479,6 +488,9 @@ namespace UltimaCinta.Ghost
         {
             if (navigation != null && navigation.isOnNavMesh)
             {
+                if (Time.time < _nextPathTime && (point - _lastPathTarget).sqrMagnitude < 1f) return;
+                _nextPathTime = Time.time + 1f / _config.Atmosphere.NavigationRefresh;
+                _lastPathTarget = point;
                 if (NavMesh.SamplePosition(point, out var hit, _config.GhostHearingRange, NavMesh.AllAreas))
                     navigation.SetDestination(hit.position);
                 return;
@@ -577,7 +589,7 @@ namespace UltimaCinta.Ghost
         private void SlamNearbyDoors()
         {
             foreach (var door in _doors)
-                if (door != null && Vector3.Distance(transform.position, door.transform.position) <= _config.GhostHearingRange)
+                if (door != null && Vector3.Distance(transform.position, door.transform.position) <= _config.Atmosphere.DoorSlamRadius)
                     door.ForceSlamFromGhost();
         }
 

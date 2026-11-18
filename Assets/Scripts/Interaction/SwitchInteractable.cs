@@ -20,6 +20,7 @@ namespace UltimaCinta.Interaction
         private bool _on = true;
         private bool yaFallo;
         private bool hasPower = true;
+        private bool? _lastAppliedState;
         private bool _networkStarted;
         [Networked] private NetworkBool NetworkOn { get; set; }
         [Networked] private NetworkBool NetworkFailed { get; set; }
@@ -82,7 +83,7 @@ namespace UltimaCinta.Interaction
         public void SetPowerAvailable(bool available)
         {
             hasPower = available;
-            if (available) SetLightState(_on);
+            SetLightState(_on);
         }
 
         public void EnsureRealtimeLight()
@@ -170,6 +171,8 @@ namespace UltimaCinta.Interaction
                 NetworkFailed = yaFallo;
             }
             var poweredState = enabled && hasPower;
+            if (_lastAppliedState == poweredState) return;
+            _lastAppliedState = poweredState;
             if (controlledLight != null) controlledLight.enabled = poweredState;
             if (controlledObject != null) controlledObject.SetActive(poweredState);
             SetEmissionEnabled(poweredState);

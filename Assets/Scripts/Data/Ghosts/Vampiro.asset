@@ -21,3 +21,4 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 9a64433fa7f1c4f44bf0604d7b3830cf, type: 2}
   - {fileID: 11400000, guid: d4b4abca1bf8a7e4a8b6a0c37fd23053, type: 2}
   ghostPrefab: {fileID: 1722085565006927059, guid: ebac14393df7f5a47ba9b35f1712c46d, type: 3}
+  soundProfile: 1

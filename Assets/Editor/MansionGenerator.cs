@@ -197,7 +197,7 @@ namespace UltimaCinta.Editor
                     stepCount += BuildSteps(door, owner, spaces.FindAll(space => space.Level == "Planta baja"), materials);
             }
 
-            BuildExterior(exterior, groundSpaces, materials);
+            BuildExterior(exterior, groundSpaces, doors, materials);
             BuildBasementBackfill(spaces, groundSpaces, materials);
             BuildBasementExit(doors, spaces, roots, materials, ref stepCount);
             BuildStairs(stairs, spaces, roots, materials);
@@ -959,7 +959,7 @@ namespace UltimaCinta.Editor
             return Near(door.Position, room.Bounds.yMin) ? -1f : 1f;
         }
 
-        private static void BuildExterior(List<ExteriorRect> exterior, List<MansionLayoutSpace> spaces, Materials materials)
+        private static void BuildExterior(List<ExteriorRect> exterior, List<MansionLayoutSpace> spaces, List<MansionLayoutDoor> doors, Materials materials)
         {
             var bounds = exterior.Find(item => item.Id == "Porche").Bounds;
             var porchRoot = new GameObject("Exterior_Porche").transform;
@@ -992,6 +992,18 @@ namespace UltimaCinta.Editor
                 maxX + MansionGeneratorConstants.TerrainMargin, maxZ + MansionGeneratorConstants.TerrainMargin);
             var terrainOpenings = new List<Rect> { bounds };
             foreach (var space in spaces) terrainOpenings.Add(space.Bounds);
+            var exit = doors.Find(door => door.Id == "P-B7");
+            if (exit != null)
+            {
+                const float run = (MansionGeneratorConstants.BasementExitRiserCount + 0.5f) * MansionGeneratorConstants.StairTreadDepth;
+                var center = (exit.Min + exit.Max) * MansionGeneratorConstants.Half;
+                var end = exit.Position + run;
+                var halfWidth = MansionGeneratorConstants.StairWidth * MansionGeneratorConstants.Half + MansionGeneratorConstants.StairTreadThickness;
+                var opening = exit.Axis == 'Z'
+                    ? Rect.MinMaxRect(center - halfWidth, Mathf.Min(exit.Position, end), center + halfWidth, Mathf.Max(exit.Position, end))
+                    : Rect.MinMaxRect(Mathf.Min(exit.Position, end), center - halfWidth, Mathf.Max(exit.Position, end), center + halfWidth);
+                terrainOpenings.Add(opening);
+            }
             BuildSlab(footprint, terrainOpenings, MansionGeneratorConstants.ExteriorGroundY - MansionGeneratorConstants.FloorBuildUp,
                 MansionGeneratorConstants.FloorBuildUp, porchRoot, materials.Ground, "ExteriorGround");
         }

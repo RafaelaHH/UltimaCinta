@@ -45,8 +45,8 @@ namespace UltimaCinta.UI
 
         private void Start()
         {
-            if (_networkAvatar == null) ConfigureRole(true);
-            else if (_networkAvatar.IsNetworkStarted) ConfigureRole(_networkAvatar.IsLocalPlayer);
+            if (_networkAvatar == null || !_networkAvatar.IsNetworkStarted) ConfigureRole(true);
+            else ConfigureRole(_networkAvatar.IsLocalPlayer);
             GameSettingsStore.Apply(gameConfig);
         }
 
@@ -152,7 +152,7 @@ namespace UltimaCinta.UI
             {
                 PlayClick();
                 Close();
-                var lobby = FindFirstObjectByType<NetworkLobbyController>();
+                var lobby = FindAnyObjectByType<NetworkLobbyController>();
                 if (lobby != null) lobby.ReturnToTitle();
                 else SceneManager.LoadScene("Bootstrap", LoadSceneMode.Single);
             }

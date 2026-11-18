@@ -4,6 +4,8 @@ namespace UltimaCinta.Data
     [CreateAssetMenu(fileName = "GameConfig", menuName = "UltimaCinta/Game Config")]
     public sealed class GameConfig : ScriptableObject
     {
+        [SerializeField] private GameAtmosphereConfig atmosphere = new GameAtmosphereConfig();
+        public GameAtmosphereConfig Atmosphere => atmosphere;
         [Header("Night")]
         [SerializeField, Min(0f)] private float realNightDurationMinutes;
         [SerializeField, Min(0f)] private float gameNightDurationHours;

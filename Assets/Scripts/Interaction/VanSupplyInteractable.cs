@@ -12,7 +12,9 @@ namespace UltimaCinta.Interaction
         private readonly List<bool> _vehicleRendererStates = new List<bool>();
         private readonly List<Collider> _vehicleColliders = new List<Collider>();
         private readonly List<bool> _vehicleColliderStates = new List<bool>();
-        private readonly List<PlayerReturnState> _occupants = new List<PlayerReturnState>(3);
+        [SerializeField] private UltimaCinta.Data.GameConfig gameConfig;
+        public UltimaCinta.Data.GameConfig Config => gameConfig;
+        private readonly List<PlayerReturnState> _occupants = new List<PlayerReturnState>(4);
         private BoxCollider _vanTrigger;
         private bool _vanTriggerWasEnabled;
         private GameObject _interiorRoot;
@@ -38,13 +40,14 @@ namespace UltimaCinta.Interaction
                 return false;
             }
 
-            position = VanCabinBuilder.EntryPosition(trigger);
+            position = VanCabinBuilder.EntryPosition(trigger, this);
             rotation = VanCabinBuilder.EntryRotation(trigger);
             return true;
         }
 
         private void Awake()
         {
+            if (gameConfig == null) gameConfig = FindAnyObjectByType<UltimaCinta.Ghost.GhostWorldController>()?.Config;
             _vanTrigger = GetComponent<BoxCollider>();
             if (_vanTrigger == null)
             {
@@ -54,7 +57,9 @@ namespace UltimaCinta.Interaction
             _vanTriggerWasEnabled = _vanTrigger.enabled;
             CacheSupplies();
             CacheVehicleParts();
-            SetSuppliesVisible(false);
+            BuildInterior();
+            _interiorRoot.SetActive(true);
+            SetSuppliesVisible(true);
             SetVehicleVisible(true);
         }
 
@@ -66,28 +71,36 @@ namespace UltimaCinta.Interaction
             {
                 if (_occupants[index].Player == playerTransform) return Leave(interactor);
             }
-            if (_occupants.Count >= 3)
+            if (_occupants.Count >= 4)
             {
-                interactor.GetComponent<PlayerInventory>()?.ShowMessage("La cabina ya tiene tres investigadores.");
+                interactor.GetComponent<PlayerInventory>()?.ShowMessage("La cabina ya tiene cuatro investigadores.");
                 return false;
             }
 
             if (_interiorRoot == null) BuildInterior();
-            var firstOccupant = _occupants.Count == 0;
-            if (firstOccupant)
-            {
-                SetVehicleVisible(false);
-                _interiorRoot.SetActive(true);
-                SetSuppliesVisible(true);
-            }
+            _interiorRoot.SetActive(true);
+            SetSuppliesVisible(true);
+            var connected = NetworkPlayerAvatar.ActivePlayers;
+            var occupied = 0;
+            for (var i = 0; i < connected.Count; i++) if (connected[i] != null && connected[i].InsideVan) occupied++;
+            if (connected.Count > 0 && occupied >= 4) return false;
 
             var slot = _occupants.Count;
+            var avatar = interactor.GetComponent<NetworkPlayerAvatar>();
+            if (avatar != null && avatar.IsNetworkStarted)
+            {
+                slot = 0;
+                foreach (var other in NetworkPlayerAvatar.ActivePlayers)
+                    if (other != null && other.IsNetworkStarted && other.Object.StateAuthority.RawEncoded < avatar.Object.StateAuthority.RawEncoded) slot++;
+                if (slot >= 4) return false;
+                avatar.SetInsideVan(true);
+            }
             var entryRotation = VanCabinBuilder.EntryRotation(_vanTrigger);
-            var offset = (slot - 1) * 0.75f;
+            var offset = (slot % 2 == 0 ? -1f : 1f) * 0.65f;
             var returnPosition = GetEntryPosition() + entryRotation * (Vector3.right * offset);
             _occupants.Add(new PlayerReturnState(playerTransform, returnPosition, entryRotation));
             MovePlayer(playerTransform, VanCabinBuilder.InteriorPosition(_vanTrigger, slot), entryRotation);
-            interactor.GetComponent<PlayerInventory>()?.ShowMessage("Cabina abierta · hasta tres investigadores pueden equiparse. E para salir.");
+            interactor.GetComponent<PlayerInventory>()?.ShowMessage("Cabina abierta · hasta cuatro investigadores pueden equiparse. E para salir.");
             return true;
         }
 
@@ -102,21 +115,15 @@ namespace UltimaCinta.Interaction
 
             var state = _occupants[occupantIndex];
             _occupants.RemoveAt(occupantIndex);
+            interactor.GetComponent<NetworkPlayerAvatar>()?.SetInsideVan(false);
             MovePlayer(player, state.ReturnPosition, state.ReturnRotation);
             interactor.GetComponent<PlayerInventory>()?.ShowMessage("Has salido de la camioneta.");
-            if (_occupants.Count == 0)
-            {
-                SetSuppliesVisible(false);
-                if (_interiorRoot != null) _interiorRoot.SetActive(false);
-                SetVehicleVisible(true);
-                if (_vanTrigger != null) _vanTrigger.enabled = _vanTriggerWasEnabled;
-            }
             return true;
         }
 
         private void BuildInterior() => _interiorRoot = VanCabinBuilder.Build(this, _vanTrigger, _supplies);
 
-        private Vector3 GetEntryPosition() => VanCabinBuilder.EntryPosition(_vanTrigger);
+        private Vector3 GetEntryPosition() => VanCabinBuilder.EntryPosition(_vanTrigger, this);
 
         private void MovePlayer(Transform player, Vector3 position, Quaternion rotation)
         {

@@ -24,6 +24,19 @@ namespace UltimaCinta.UI
             Cursor.visible = true;
         }
 
+        private void Start()
+        {
+            var arguments = System.Environment.GetCommandLineArgs();
+            for (var index = 0; index < arguments.Length - 1; index++)
+            {
+                var create = string.Equals(arguments[index], "-ucCreateRoom", System.StringComparison.OrdinalIgnoreCase);
+                var join = string.Equals(arguments[index], "-ucJoinRoom", System.StringComparison.OrdinalIgnoreCase);
+                if ((!create && !join) || string.IsNullOrWhiteSpace(arguments[index + 1])) continue;
+                SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
+                return;
+            }
+        }
+
         private void OnGUI()
         {
             GameMenuStyles.DrawBackdrop();

@@ -16,6 +16,7 @@ namespace UltimaCinta.CameraSystem
         public float TapeNormalized => gameConfig == null || gameConfig.TapeDurationMinutes <= 0 ? 0 : _tapeMinutes / gameConfig.TapeDurationMinutes;
         public float WarningThreshold => gameConfig != null ? gameConfig.CameraLowResourceThreshold : 0.2f;
         public bool IsPowered => _powered;
+        public float CurrentFieldOfView => playerCamera != null ? playerCamera.fieldOfView : gameConfig.CameraFieldOfView;
         public bool NightVisionEnabled => _nightVision;
         private void Awake()
         {

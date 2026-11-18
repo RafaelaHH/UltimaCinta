@@ -50,6 +50,11 @@ namespace UltimaCinta.Audio
             return (lowNoise * 0.12f + white * 0.018f) * swell * Fade(progress, 0.01f);
         });
 
+        private static AudioClip _impact;
+        public static AudioClip Impact() => _impact ??= CreateClip("Golpe de madera y metal", 0.7f, p =>
+            (Noise((int)(p * SampleRate)) * Mathf.Exp(-p * 32f) * 0.75f +
+             Mathf.Sin(p * 0.7f * Mathf.PI * 2f * 63f) * Mathf.Exp(-p * 12f) * 0.48f) * Fade(p, 0.003f));
+
         public static AudioClip Door(bool opening)
         {
             if (opening) return _doorOpen ??= CreateDoorClip(true);

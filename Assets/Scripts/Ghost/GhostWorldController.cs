@@ -32,6 +32,8 @@ namespace UltimaCinta.Ghost
         [Networked] private NetworkBool NetworkRitualItem1Picked { get; set; }
         [Networked] private NetworkBool NetworkRitualItem2Picked { get; set; }
         private GhostAgent _agent;
+        private NightClock _clock;
+        private void Awake() => _clock = FindAnyObjectByType<NightClock>();
         private GhostType _localType;
         private GhostRoomMarker _localFavoriteRoom;
         private float _localAggression;
@@ -96,7 +98,7 @@ namespace UltimaCinta.Ghost
                 Debug.Log($"[Fusion] Autoridad del estado del fantasma transferida: activa={_lastStateAuthority}.", this);
             }
             if (!HasStateAuthority) return;
-            var clock = FindAnyObjectByType<NightClock>();
+            var clock = _clock;
             if (!NetworkRitualActive && !NetworkRitualWavesComplete &&
                 NetworkRitualPlacedItems >= 3 && NetworkRitualLitCandles >= 3 &&
                 clock != null && clock.Act == NightAct.Ritual)
@@ -340,7 +342,7 @@ namespace UltimaCinta.Ghost
             var rotation = FavoriteRoom.transform.rotation;
             if (_networkStarted)
             {
-                var ghostObject = Runner.Spawn(CurrentType.GhostPrefab, position, rotation, PlayerRef.None,
+                var ghostObject = Runner.Spawn(CurrentType.GhostPrefab, position, rotation, null,
                     (runner, spawnedObject) => spawnedObject.GetComponent<GhostAgent>()?.Initialize(CurrentType, gameConfig, FavoriteRoom, Aggression));
                 _agent = ghostObject != null ? ghostObject.GetComponent<GhostAgent>() : null;
             }

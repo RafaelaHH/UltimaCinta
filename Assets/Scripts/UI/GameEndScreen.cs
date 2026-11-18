@@ -31,7 +31,7 @@ namespace UltimaCinta.UI
         }
         private static bool AllPlayersDead()
         {
-            var players = FindObjectsByType<SanityController>(FindObjectsSortMode.None);
+            var players = FindObjectsByType<SanityController>();
             if (players.Length == 0) return false;
             foreach (var player in players) if (player != null && !player.IsDead) return false;
             return true;
@@ -53,7 +53,7 @@ namespace UltimaCinta.UI
             if (GameMenuStyles.Button(new Rect(panel.center.x - buttonWidth * 0.5f, panel.yMax - 74f * GameMenuStyles.Scale,
                     buttonWidth, 46f * GameMenuStyles.Scale), "VOLVER AL MENÚ PRINCIPAL"))
             {
-                var lobby = FindFirstObjectByType<NetworkLobbyController>();
+                var lobby = FindAnyObjectByType<NetworkLobbyController>();
                 if (lobby != null) lobby.ReturnToTitle();
                 else SceneManager.LoadScene("Bootstrap", LoadSceneMode.Single);
             }

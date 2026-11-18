@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 376890083695612448}
   - component: {fileID: 6005955761296584079}
   - component: {fileID: 167931707154957482}
+  - component: {fileID: 8647772006302492506}
   m_Layer: 8
   m_Name: Espectro
   m_TagString: Untagged
@@ -192,6 +193,20 @@ MonoBehaviour:
     MinImpactfulCollisionAlignment: 0.3
     ImpactStartCorrectionTime: 0.1
     ImpactCorrectionTimeComplete: 0.3
+--- !u!114 &8647772006302492506
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7019734106685144684}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf42f7c689cb30a489255090e35e11f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Audio.GhostAudioController
+  ghostAgent: {fileID: 3347315962841721796}
+  gameConfig: {fileID: 11400000, guid: e92c07202ef649e4cbdee783c5d9bbc5, type: 2}
 --- !u!1001 &1581292888304308951
 PrefabInstance:
   m_ObjectHideFlags: 0

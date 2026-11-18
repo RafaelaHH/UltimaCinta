@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UltimaCinta.Ghost;
+using UltimaCinta.Player;
 namespace UltimaCinta.CameraSystem
 {
     [DisallowMultipleComponent]
@@ -18,6 +19,7 @@ namespace UltimaCinta.CameraSystem
         private LensDistortion _lensDistortion;
         private SanityController _sanity;
         private GhostCameraInterference _interference;
+        private NetworkPlayerAvatar _networkAvatar;
         private int _baseCullingMask;
         private int _ghostLayer;
         private void Awake()
@@ -26,8 +28,10 @@ namespace UltimaCinta.CameraSystem
             if (volume == null) volume = gameObject.AddComponent<Volume>();
             volume.isGlobal = true;
             volume.weight = 1f;
+            volume.enabled = false;
             if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
             if (resources == null) resources = GetComponent<CameraResourceController>();
+            _networkAvatar = GetComponent<NetworkPlayerAvatar>();
             _sanity = GetComponent<SanityController>();
             _interference = GetComponent<GhostCameraInterference>();
             if (volume != null)
@@ -67,6 +71,8 @@ namespace UltimaCinta.CameraSystem
         }
         private void Start()
         {
+            if (_networkAvatar == null || !_networkAvatar.IsNetworkStarted) ConfigureRole(true);
+            else ConfigureRole(_networkAvatar.IsLocalPlayer);
             if (_sanity == null) return;
             _sanity.SanityChanged += RefreshSanityEffects;
             RefreshSanityEffects(_sanity.Value);
@@ -75,6 +81,11 @@ namespace UltimaCinta.CameraSystem
         {
             if (resources != null) resources.ResourcesChanged -= RefreshCameraState;
             if (_sanity != null) _sanity.SanityChanged -= RefreshSanityEffects;
+        }
+
+        public void ConfigureRole(bool isLocalPlayer)
+        {
+            if (volume != null) volume.enabled = isLocalPlayer;
         }
         private void RefreshCameraState()
         {

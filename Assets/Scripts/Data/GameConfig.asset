@@ -12,6 +12,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7328ce36bb875ef428a59af9d20244b6, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: Assembly-CSharp::UltimaCinta.Data.GameConfig
+  atmosphere:
+    <DoorSlamRadius>k__BackingField: 3
+    <DoorSlamCooldown>k__BackingField: 12
+    <DoorSlamSpeed>k__BackingField: 850
+    <ImpactVolume>k__BackingField: 0.85
+    <HeartbeatRange>k__BackingField: 15
+    <FlickerRange>k__BackingField: 9
+    <FlickerInterval>k__BackingField: 0.12
+    <NavigationRefresh>k__BackingField: 4
+    <PropEventInterval>k__BackingField: 16
+    <CabinWidth>k__BackingField: 3.6
+    <CabinLength>k__BackingField: 6.4
+    <CabinHeight>k__BackingField: 2.8
+    <RecordingFramesPerSecond>k__BackingField: 2
+    <RecordingWidth>k__BackingField: 320
+    <RecordingJpegQuality>k__BackingField: 55
+    <RecordingBudgetMegabytes>k__BackingField: 2048
+    <MonitorFarClip>k__BackingField: 45
+    <LightCullDistance>k__BackingField: 24
+    <TargetFrameRate>k__BackingField: 60
   realNightDurationMinutes: 180
   gameNightDurationHours: 8
   gameMinutesPerRealMinute: 2.7
@@ -113,3 +133,32 @@ MonoBehaviour:
   sanityBlurFarEndMeters: 5
   sanityPillPickupCount: 4
   cameraBatteryPickupCount: 4
+  audioTuning:
+    defaultMasterVolume: 0.8
+    sensitivityMultiplierMinimum: 0.5
+    sensitivityMultiplierMaximum: 2
+    defaultSensitivityMultiplier: 1
+    subtitleDurationSeconds: 2.5
+    footstepIntervalSeconds: 0.52
+    sprintFootstepIntervalSeconds: 0.34
+    footstepVolume: 0.38
+    footstepMinDistanceMeters: 1
+    footstepMaxDistanceMeters: 12
+    pickupVolume: 0.7
+    uiVolume: 0.48
+    milestoneVolume: 0.62
+    doorVolume: 0.72
+    doorMinDistanceMeters: 1
+    doorMaxDistanceMeters: 16
+    ghostVolume: 0.68
+    ghostMinDistanceMeters: 1.5
+    ghostMaxDistanceMeters: 22
+    ghostHuntCueIntervalSeconds: 7
+    heartbeatSanityThreshold: 45
+    heartbeatIntervalAtThresholdSeconds: 1.35
+    heartbeatIntervalAtZeroSeconds: 0.42
+    heartbeatVolume: 0.62
+    roomToneVolume: 0.07
+    maximumFilmGrain: 0.65
+    maximumChromaticAberration: 0.22
+    maximumLensDistortion: -0.1

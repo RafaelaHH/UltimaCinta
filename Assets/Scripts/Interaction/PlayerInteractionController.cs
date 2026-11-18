@@ -25,8 +25,6 @@ namespace UltimaCinta.Interaction
             if (input == null) input = GetComponent<UltimaCinta.Player.PlayerInputReader>();
             if (gameConfig == null) Debug.LogError($"PlayerInteractionController {name}: falta GameConfig; no hay distancia de interacción.", this);
             if (view == null) Debug.LogError($"PlayerInteractionController {name}: no encuentra la cámara de interacción.", this);
-            Debug.Log($"[DIAG] interacción: cámara={(view != null ? view.name : "FALTA")}, " +
-                      $"distancia={InteractionDistance:0.00} m, LayerMask={interactionLayers.value}.", this);
         }
         private void Update()
         {
@@ -60,8 +58,6 @@ namespace UltimaCinta.Interaction
 
             if (targetCollider != lastTargetCollider || !ReferenceEquals(target, lastInteractable))
             {
-                Debug.Log($"Objetivo apuntado: {targetCollider?.name ?? "ninguno"}; interactuable={target != null} " +
-                          $"({target?.GetType().Name ?? "NULL"}).", targetCollider);
                 lastTargetCollider = targetCollider;
                 lastInteractable = target;
             }
@@ -71,7 +67,6 @@ namespace UltimaCinta.Interaction
             if (input != null && input.InteractPressed)
             {
                 if (target != null) target.Interact(gameObject);
-                else Debug.Log("Interacción: pulsé E sin un objetivo interactuable.", this);
             }
         }
 

@@ -13,6 +13,9 @@ namespace UltimaCinta.Interaction
         [SerializeField] private float swingSign = 1f;
         [SerializeField] private float openAngle = -1f;
         private bool _open;
+        private bool _slamming;
+        private int _lastSlam;
+        [Networked] private int NetworkSlamSequence { get; set; }
         private bool _unlocked;
         private Quaternion _closedRotation;
         private bool _networkStarted;
@@ -24,9 +27,9 @@ namespace UltimaCinta.Interaction
         public string Prompt => _open ? "E — close door" : !_unlocked ? $"E — unlock with {keyId}" : "E — open door";
         public void ForceSlamFromGhost()
         {
-            if (!_unlocked) return;
-            if (!_networkStarted) { _open = false; return; }
-            if (HasStateAuthority) NetworkOpen = false;
+            if (!_unlocked || !_open) return;
+            if (!_networkStarted) { _open = false; BeginSlam(); return; }
+            if (HasStateAuthority) { NetworkOpen = false; NetworkSlamSequence++; }
             else RPC_ForceClosed();
         }
         public void UnlockForAct()
@@ -58,6 +61,7 @@ namespace UltimaCinta.Interaction
             }
             ApplyNetworkState();
             _renderedOpen = _open;
+            _lastSlam = NetworkSlamSequence;
             _stateInitialized = true;
         }
         public override void Render() { if (_networkStarted) ApplyNetworkState(); }
@@ -74,10 +78,11 @@ namespace UltimaCinta.Interaction
         private void RPC_Unlock() { NetworkUnlocked = true; }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_ForceClosed() { if (NetworkUnlocked) NetworkOpen = false; }
+        private void RPC_ForceClosed() { if (NetworkUnlocked && NetworkOpen) { NetworkOpen = false; NetworkSlamSequence++; } }
 
         private void ApplyNetworkState()
         {
+            if (_lastSlam != NetworkSlamSequence) { _lastSlam = NetworkSlamSequence; BeginSlam(); }
             _open = NetworkOpen;
             _unlocked = NetworkUnlocked;
         }
@@ -91,7 +96,7 @@ namespace UltimaCinta.Interaction
             else if (_renderedOpen != _open)
             {
                 _renderedOpen = _open;
-                PlayDoorCue();
+                if (!_slamming) PlayDoorCue();
             }
 
             if (gameConfig == null) return;
@@ -99,7 +104,16 @@ namespace UltimaCinta.Interaction
             _audioSource.maxDistance = gameConfig.Audio.DoorMaxDistanceMeters;
             var angle = openAngle > 0f ? openAngle : gameConfig.DoorOpenAngle;
             var target = _open ? _closedRotation * Quaternion.Euler(0f, angle * swingSign, 0f) : _closedRotation;
-            hinge.localRotation = Quaternion.RotateTowards(hinge.localRotation, target, gameConfig.DoorOpenSpeed * Time.deltaTime);
+            hinge.localRotation = Quaternion.RotateTowards(hinge.localRotation, target, (_slamming && !_open ? gameConfig.Atmosphere.DoorSlamSpeed : gameConfig.DoorOpenSpeed) * Time.deltaTime);
+            if (Quaternion.Angle(hinge.localRotation, target) < 0.01f) _slamming = false;
+        }
+
+        private void BeginSlam()
+        {
+            _slamming = true;
+            if (gameConfig == null || _audioSource == null) return;
+            _audioSource.PlayOneShot(AudioCueLibrary.Impact(), gameConfig.Atmosphere.ImpactVolume);
+            SubtitleOverlay.ShowAt(transform.position, gameConfig.Audio.DoorMaxDistanceMeters, "�Un portazo violento!");
         }
 
         private void PlayDoorCue()
