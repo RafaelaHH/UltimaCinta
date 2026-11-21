@@ -210,6 +210,12 @@ namespace UltimaCinta.Editor
                 break;
             }
             spawnRoot.transform.SetPositionAndRotation(basePosition, baseRotation);
+            foreach (var scenePlayer in scenePlayers)
+            {
+                if (scenePlayer == null || scenePlayer.gameObject.scene != scene || scenePlayer.GetComponent<NetworkObject>() == null) continue;
+                scenePlayer.transform.SetParent(null, true);
+                scenePlayer.transform.SetPositionAndRotation(basePosition, baseRotation);
+            }
             var spawnPoints = new Transform[4];
             var offsets = new[]
             {

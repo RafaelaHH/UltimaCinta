@@ -15,7 +15,7 @@ namespace UltimaCinta.UI
         private static Texture2D _buttonHoverTexture;
         private static Texture2D _buttonActiveTexture;
 
-        public static float Scale => Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f), 0.65f, 1.2f);
+        public static float Scale => Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f), 0.9f, 1.2f);
 
         public static void DrawBackdrop()
         {

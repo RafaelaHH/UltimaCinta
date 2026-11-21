@@ -11,6 +11,8 @@ namespace UltimaCinta.Interaction
 
         public void SetVan(VanSupplyInteractable van) => _van = van;
 
+        public bool CanInteract(GameObject interactor) => _van != null && _van.IsOccupant(interactor);
+
         public bool Interact(GameObject interactor) => _van != null && _van.Leave(interactor);
     }
 }

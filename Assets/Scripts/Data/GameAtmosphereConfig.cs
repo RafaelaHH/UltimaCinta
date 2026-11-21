@@ -17,6 +17,8 @@ namespace UltimaCinta.Data
         [field: SerializeField, Min(1f)] public float CabinWidth { get; private set; } = 3.6f;
         [field: SerializeField, Min(1f)] public float CabinLength { get; private set; } = 6.4f;
         [field: SerializeField, Min(2f)] public float CabinHeight { get; private set; } = 2.8f;
+        [field: SerializeField, Min(0f)] public float VanEntryLightIntensity { get; private set; } = 1.2f;
+        [field: SerializeField, Min(0f)] public float VanEntryLightRange { get; private set; } = 5f;
         [field: SerializeField, Min(1f)] public float RecordingFramesPerSecond { get; private set; } = 2f;
         [field: SerializeField, Min(128)] public int RecordingWidth { get; private set; } = 320;
         [field: SerializeField, Range(25, 90)] public int RecordingJpegQuality { get; private set; } = 55;

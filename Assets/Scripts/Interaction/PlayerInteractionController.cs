@@ -41,6 +41,7 @@ namespace UltimaCinta.Interaction
                     var collider = hit.collider;
                     if (collider == null || collider.transform == transform || collider.transform.IsChildOf(transform)) continue;
                     var candidate = collider.GetComponentInParent<IInteractable>();
+                    if (candidate is VanExitInteractable vanExit && !vanExit.CanInteract(gameObject)) continue;
                     if (candidate != null)
                     {
                         target = candidate;

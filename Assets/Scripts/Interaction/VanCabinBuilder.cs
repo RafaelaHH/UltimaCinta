@@ -22,7 +22,7 @@ namespace UltimaCinta.Interaction
             halfLength = van.Config.Atmosphere.CabinLength * 0.5f;
             var interior = new GameObject("Interior físico de camioneta");
             interior.transform.SetPositionAndRotation(bounds.center,
-                lengthRunsAlongZ ? Quaternion.Euler(0f, -90f, 0f) : Quaternion.identity);
+                lengthRunsAlongZ ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity);
             var floorLocalY = floorY - bounds.center.y;
             var center = Vector3.zero;
             var minX = -halfLength;
@@ -111,19 +111,19 @@ namespace UltimaCinta.Interaction
             var floorLocalY = bounds.min.y + BoundsExpansion * 0.5f + WallThickness * 0.5f - bounds.center.y;
             var localEntry = new Vector3(halfLength + EntranceRampLength * 0.5f,
                 floorLocalY - EntranceRise * 0.5f, 0f);
-            var rotation = lengthRunsAlongZ ? Quaternion.Euler(0f, -90f, 0f) : Quaternion.identity;
+            var rotation = lengthRunsAlongZ ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity;
             return bounds.center + rotation * localEntry;
         }
 
         public static Quaternion EntryRotation(BoxCollider trigger) =>
-            trigger.bounds.extents.z > trigger.bounds.extents.x ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.Euler(0f, -90f, 0f);
+            trigger.bounds.extents.z > trigger.bounds.extents.x ? Quaternion.identity : Quaternion.Euler(0f, -90f, 0f);
 
         public static Vector3 InteriorPosition(BoxCollider trigger, int occupantIndex)
         {
             var bounds = trigger.bounds;
             var lengthRunsAlongZ = bounds.extents.z > bounds.extents.x;
             var floorLocalY = bounds.min.y + BoundsExpansion * 0.5f + WallThickness * 0.5f - bounds.center.y;
-            var rotation = lengthRunsAlongZ ? Quaternion.Euler(0f, -90f, 0f) : Quaternion.identity;
+            var rotation = lengthRunsAlongZ ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity;
             var lateralOffset = occupantIndex % 2 == 0 ? -0.72f : 0.72f;
             var rowOffset = occupantIndex / 2 == 0 ? -1.1f : 1.1f;
             return bounds.center + rotation * new Vector3(rowOffset, floorLocalY + WallThickness * 0.5f + 0.05f, lateralOffset);

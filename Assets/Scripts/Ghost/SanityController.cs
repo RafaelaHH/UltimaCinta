@@ -280,7 +280,7 @@ namespace UltimaCinta.Ghost
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = atZero ? new Color(1f, 0.18f, 0.18f) : Color.white }
             };
-            GUI.Label(new Rect(24f, 18f, 220f, 30f), $"CORDURA {currentSanity:0}", sanityStyle);
+            GUI.Label(new Rect(Screen.width - 244f, 18f, 220f, 30f), $"CORDURA {currentSanity:0}", sanityStyle);
             if (_hallucinationDisplayTimer > 0f && !string.IsNullOrEmpty(_hallucination))
             {
                 GUI.color = new Color(1f, 0.86f, 0.86f, Mathf.Clamp01(_hallucinationDisplayTimer));

@@ -50,13 +50,12 @@ namespace UltimaCinta.UI
             GameMenuStyles.DrawTitle(new Rect(panel.x + 30f, panel.y + 50f, panel.width - 60f, 58f), "ANTES DE ENTRAR");
             GameMenuStyles.DrawRule(panel.x + 38f, panel.y + 116f, panel.width - 76f);
 
-            var text = "W A S D   moverte        RATÓN   mirar\n" +
-                       "E   interactuar y recoger objetos        J   abrir el diario\n\n" +
-                       "1 / 2 / 3   elegir herramienta        Q   usar la herramienta elegida\n" +
-                       "G   soltar objeto        SHIFT   correr        C   agacharte\n\n" +
-                       "F   linterna        N   visión nocturna de la cámara\n" +
-                       "RUEDA DEL RATÓN   acercar o alejar la cámara\n\n" +
-                       "El fantasma solo se revela a través del lente. Revisa el diario antes del ritual.\nE   salir de la camioneta.";
+            var text = "WASD: moverte   ·   RATÓN: mirar   ·   SHIFT: correr   ·   C: agacharte\n" +
+                       "E: interactuar   ·   J: diario   ·   G: soltar objeto\n" +
+                       "1/2/3: elegir herramienta   ·   Q: usarla\n" +
+                       "F: linterna   ·   N: visión nocturna   ·   RUEDA: zoom\n\n" +
+                       "El fantasma solo aparece a través del lente.\n" +
+                       "Revisa el diario antes del ritual. Pulsa E para salir.";
             GameMenuStyles.DrawBody(new Rect(panel.x + 50f, panel.y + 136f, panel.width - 100f, 226f * scale), text);
             var buttonWidth = Mathf.Min(panel.width - 100f, 300f * scale);
             if (GameMenuStyles.Button(new Rect(panel.center.x - buttonWidth * 0.5f, panel.yMax - 72f * scale,

@@ -58,6 +58,14 @@ namespace UltimaCinta.Interaction
             CacheSupplies();
             CacheVehicleParts();
             BuildInterior();
+            var entryLightObject = new GameObject("Luz de acceso de camioneta");
+            entryLightObject.transform.SetParent(transform, true);
+            entryLightObject.transform.position = GetEntryPosition() + Vector3.up * 2f;
+            var entryLight = entryLightObject.AddComponent<Light>();
+            entryLight.type = LightType.Point;
+            entryLight.color = new Color(1f, 0.72f, 0.42f);
+            entryLight.intensity = gameConfig.Atmosphere.VanEntryLightIntensity;
+            entryLight.range = gameConfig.Atmosphere.VanEntryLightRange;
             _interiorRoot.SetActive(true);
             SetSuppliesVisible(true);
             SetVehicleVisible(true);

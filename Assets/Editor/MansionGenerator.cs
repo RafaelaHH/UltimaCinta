@@ -1225,6 +1225,13 @@ namespace UltimaCinta.Editor
             }
             player.name = "Player";
             player.transform.localPosition = new Vector3(0f, MansionGeneratorConstants.PlayerSpawnY, 0f);
+            foreach (var van in UnityEngine.Object.FindObjectsByType<VanSupplyInteractable>(FindObjectsInactive.Include))
+            {
+                if (van.gameObject.scene != scene || !van.TryGetApproachPose(out var position, out var rotation)) continue;
+                player.transform.SetParent(null, true);
+                player.transform.SetPositionAndRotation(position, rotation);
+                break;
+            }
             var mainCamera = player.GetComponentInChildren<Camera>(true);
             if (mainCamera == null)
             {
