@@ -90,6 +90,7 @@ namespace UltimaCinta.Editor
         public const float WallHangingHeight = 1.4f;
         public const float DiningClearance = 0.9f;
         public const float VanLength = 5.5f;
+        public const float VanBasementClearanceOffset = 1.0f;
         public const float VanHeight = 2.4f;
         public const float StorageBoxSize = 0.7f;
         public const float BathtubLength = 1.7f;
@@ -1622,6 +1623,7 @@ namespace UltimaCinta.Editor
             }
             var existingVan = FindChild(exterior.transform, "camioneta") ?? FindChild(exterior.transform, "Camioneta");
             var oldPlaceholder = FindChild(exterior.transform, "Camioneta_Placeholder");
+            var replacingPlaceholder = oldPlaceholder != null;
             if (!models.TryGetValue("camioneta", out var vanPath))
             {
                 OmitObject("Exterior", "camioneta", "sin candidatos", omittedDetails);
@@ -1636,7 +1638,7 @@ namespace UltimaCinta.Editor
             }
 
             var position = oldPlaceholder != null ? oldPlaceholder.transform.position : existingVan.transform.position;
-            if (existingVan != null && TryGetRendererBounds(existingVan, out var existingBounds)) position = existingBounds.center;
+            if (!replacingPlaceholder && existingVan != null && TryGetRendererBounds(existingVan, out var existingBounds)) position = existingBounds.center;
             var oldDecoration = exterior.transform.Find("Decoracion");
             if (oldDecoration != null) UnityEngine.Object.DestroyImmediate(oldDecoration.gameObject);
             if (oldPlaceholder != null) UnityEngine.Object.DestroyImmediate(oldPlaceholder);
@@ -1668,7 +1670,8 @@ namespace UltimaCinta.Editor
                 omitted++;
                 return;
             }
-            SetBoundsCenter(van.transform, vanBounds, new Vector3(position.x,
+            var vanX = replacingPlaceholder ? position.x + MansionDecorationConstants.VanBasementClearanceOffset : position.x;
+            SetBoundsCenter(van.transform, vanBounds, new Vector3(vanX,
                 MansionGeneratorConstants.ExteriorGroundY + vanBounds.extents.y, position.z));
             TryGetRendererBounds(van, out vanBounds);
             RemoveChildColliders(van.transform);

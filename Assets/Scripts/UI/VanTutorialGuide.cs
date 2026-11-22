@@ -55,7 +55,7 @@ namespace UltimaCinta.UI
                        "1/2/3: elegir herramienta   ·   Q: usarla\n" +
                        "F: linterna   ·   N: visión nocturna   ·   RUEDA: zoom\n\n" +
                        "El fantasma solo aparece a través del lente.\n" +
-                       "Revisa el diario antes del ritual. Pulsa E para salir.";
+                       "Revisa el diario antes del ritual. Ve a la puerta trasera y pulsa E para salir.";
             GameMenuStyles.DrawBody(new Rect(panel.x + 50f, panel.y + 136f, panel.width - 100f, 226f * scale), text);
             var buttonWidth = Mathf.Min(panel.width - 100f, 300f * scale);
             if (GameMenuStyles.Button(new Rect(panel.center.x - buttonWidth * 0.5f, panel.yMax - 72f * scale,

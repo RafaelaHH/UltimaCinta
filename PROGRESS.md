@@ -116,6 +116,8 @@ Checklist transcrita de `Docs/Última Cinta — GDD y checklist de desarrollo.do
 
 > Integración final: grabación de camcorder a 2 FPS con presupuesto local configurable; el monitor de la camioneta ofrece cámara en directo y reproducción de capturas de la sesión local. La cabina admite cuatro plazas y mantiene visible el modelo exterior `camioneta.fbx`. Se abrió el suelo exterior para enlazar las escaleras P-B7 del sótano. La prueba de red de dos clientes comprobó la llave, la desconexión del host y el traspaso; la corrección posterior de lectura al despawn volvió a pasar sin excepciones.
 
+> QA visual y funcional en Unity 6 con Direct3D 11 (21/11/2026): E permitió entrar y salir por la puerta trasera de la camioneta; cuatro ocupantes tuvieron posiciones distintas y se rechazó el quinto. Recoger la camcorder activó la grabación, generó fotogramas JPG y el monitor mostró primero la textura en directo y luego una grabación. Se separaron los avisos del diario y la interacción. En P-B7 se corrigió la abertura del suelo hacia el exterior y se desplazó la camioneta para liberar el pozo: cinco raycasts consecutivos golpearon peldaños o rampa sin encontrar suelo encima, y la cabina no invade el paso. Siguen pendientes las pruebas manuales de partida completa y con 3–4 personas reales.
+
 ## Fase 7 — Entrega (días 29–30)
 
 - [x] Build para Windows (Unity 6, cinco escenas activas): `Builds/PhaseSix/UltimaCinta.exe`.

@@ -129,7 +129,7 @@ namespace UltimaCinta.Ghost
                 return;
             }
 
-            var prompt = new Rect(Screen.width * 0.5f - 190f, Screen.height - 120f, 380f, 30f);
+            var prompt = new Rect(Screen.width - 355f, Screen.height - 60f, 340f, 30f);
             GUI.color = new Color(0f, 0f, 0f, 0.65f);
             GUI.Box(prompt, GUIContent.none);
             GUI.color = Color.white;

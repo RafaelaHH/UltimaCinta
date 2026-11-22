@@ -997,7 +997,8 @@ namespace UltimaCinta.Editor
             {
                 const float run = (MansionGeneratorConstants.BasementExitRiserCount + 0.5f) * MansionGeneratorConstants.StairTreadDepth;
                 var center = (exit.Min + exit.Max) * MansionGeneratorConstants.Half;
-                var end = exit.Position + run;
+                var room = FindSpace(spaces, exit.A);
+                var end = exit.Position + ExteriorDirection(exit, room) * run;
                 var halfWidth = MansionGeneratorConstants.StairWidth * MansionGeneratorConstants.Half + MansionGeneratorConstants.StairTreadThickness;
                 var opening = exit.Axis == 'Z'
                     ? Rect.MinMaxRect(center - halfWidth, Mathf.Min(exit.Position, end), center + halfWidth, Mathf.Max(exit.Position, end))
